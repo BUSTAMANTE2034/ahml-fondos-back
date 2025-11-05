@@ -1,0 +1,165 @@
+{
+  "user": {
+    "id": "Identificador único del usuario.",
+    "first_name": "Nombre del usuario.",
+    "last_name": "Apellido(s) del usuario.",
+    "email": "Dirección de correo electrónico del usuario.",
+    "password": "Contraseña cifrada para la autenticación del usuario.",
+    "is_active": "Indica si esta activo o no (true/false).",
+    "role": "Roles de usuario y acceso al sistema (admin / manager / archivist / visitor)",
+    "created_at": "Fecha de creación del registro del usuario.",
+    "first_login": "Indica si es el primer inicio de sesión del usuario (true/false).",
+    "updated_at": "Fecha de última modificación del registro del usuario.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+  "record_file": {
+    "id": "Identificador único del expediente.",
+
+    "reference_code": "Código de clasificación único generado a partir de los acrónimos del fondo, la sección y la serie, junto con el año o número del expediente.",
+    "file_number": "Número secuencial o interno asignado al expediente dentro de su serie.",
+    "subject": "Título o asunto descriptivo del expediente (resumen del contenido o tema principal).",
+    "typologies": "----CAMPO RELACIONAL---- Tipologías documentales asociadas al expediente (array de IDs).",
+    "sensitive_data": "Indica si el expediente contiene información sensible o confidencial (true/false).",
+    "user_id": "Identificador del usuario que creó o actualizó el expediente.",
+    "comments": "Notas, observaciones o comentarios adicionales sobre el expediente.",
+    "availability_status": "Estado actual del expediente en el sistema (available / unavailable / under_review / on_loan).",
+
+    "fund_id": "Identificador del fondo asociado al expediente (fund.id).",
+    "section_id": "Identificador de la sección asociada al expediente (section.id).",
+    "series_id": "Identificador de la serie asociada al expediente (series.id).",
+    "location_id": "Identificador del lugar físico donde se encuentra almacenado el expediente.",
+
+    "box_number": "Número de caja física donde está archivado el expediente.",
+    "page_count": "Cantidad total de páginas o folios que componen el expediente.",
+
+    "file_date": "Fecha del documento principal o del evento relacionado con el expediente.",
+    "created_at": "Fecha en que el expediente fue creado o registrado por primera vez.",
+    "updated_at": "Fecha de la última modificación o actualización del expediente.",
+    "deleted_at": "Fecha en que el expediente fue eliminado o marcado como inactivo .",
+    "last_preservation_date": "Fecha de la última actividad o proceso de preservación registrado para el expediente.",
+    "last_fund_date": "Última fecha registrada en la que el expediente estuvo asociado al fondo o periodo histórico correspondiente.",
+    "deterioration_status_id": "Estado actual de conservación o deterioro físico del expediente.",
+    "deterioration_status_updated_at": "Fecha en que se actualizó por última vez el estado de conservación."
+  },
+  "fund": {
+    "id": "Identificador único del fondo documental.",
+    "catalog_key_id": "Identificador de la clave del catálogo asociada (catalog_key.id).",
+
+    "user_id": "Identificador del usuario que creó o modificó el registro del fondo.",
+    "name": "Nombre completo del fondo ( Presidencia Municipal).",
+    "acronym": "Acrónimo o abreviatura oficial del fondo.",
+    "start_date": "Fecha de inicio de vigencia del nombre o acrónimo actual.",
+    "end_date": "Fecha de finalización de vigencia del nombre o acrónimo .",
+    "is_active": "Indica si esta clave se encuentra vigente o en uso (true/false).",
+
+    "created_at": "Fecha de creación o constitución del fondo documental.",
+    "updated_at": "Fecha de última modificación o actualización del fondo.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+
+  "section": {
+    "id": "Identificador único de la sección administrativa.",
+    "catalog_key_id": "Identificador de la clave del catálogo asociada (catalog_key.id).",
+
+    "user_id": "Identificador del usuario que creó o actualizó la sección.",
+    "name": "Nombre completo de la sección o área (por ejemplo, Secretaría del Ayuntamiento).",
+    "acronym": "Acrónimo o abreviatura oficial de la sección.",
+    "created_at": "Fecha de creación o inicio de la sección.",
+    "start_date": "Fecha de inicio de vigencia del nombre o acrónimo actual.",
+    "end_date": "Fecha de finalización de vigencia del nombre o acrónimo .",
+    "is_active": "Indica si esta clave se encuentra vigente o en uso (true/false).",
+
+    "updated_at": "Fecha de última actualización o modificación de la sección.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+
+  "series": {
+    "id": "Identificador único de la serie documental.",
+    "catalog_key_id": "Identificador de la clave del catálogo asociada (catalog_key.id).",
+
+    "fund_id": "Identificador del fondo al que pertenece la serie.",
+    "user_id": "Identificador del usuario que registró o modificó la serie.",
+    "name": "Nombre de la serie documental (por ejemplo, Abastos, Aseo Público).",
+    "acronym": "Acrónimo o código abreviado de la serie.",
+    "start_date": "Fecha de inicio de vigencia del nombre o acrónimo actual.",
+    "end_date": "Fecha de finalización de vigencia del nombre o acrónimo .",
+
+    "is_active": "Indica si esta clave se encuentra vigente o en uso (true/false).",
+
+    "created_at": "Fecha de creación o inicio de la serie documental.",
+    "updated_at": "Fecha de última actualización o término de la serie.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+
+  "catalog_key": {
+    "id": "Identificador único de la clave del catálogo.",
+    "user_id": "Identificador del usuario que creó o modificó la clave.",
+    "entity_type": "Tipo de entidad asociada (fund / section / series).",
+    "key": "Clave o código único del catálogo (por ejemplo: PML-PRM-1935).",
+    "name": "Nombre descriptivo o título general de la clave.",
+    "description": "Descripción del propósito o contexto de la clave (por ejemplo: versión o estructura histórica del fondo).",
+    "is_active": "Indica si esta clave se encuentra vigente o en uso (true/false).",
+    "created_at": "Fecha de creación de la clave.",
+    "updated_at": "Fecha de la última modificación de la clave.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro ."
+  },
+  "location": {
+    "id": "Identificador único de la ubicación física.",
+    "name": "Nombre del área, edificio o sección donde se encuentra el expediente (por ejemplo, Archivo, Aguas, Abastos).",
+    "created_at": "Fecha de creación o habilitación de la ubicación.",
+    "updated_at": "Fecha de última modificación o actualización de la ubicación.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. .",
+    "user_id": "Identificador del usuario que registró o actualizó la ubicación."
+  },
+
+  "deterioration": {
+    "id": "Identificador único del registro de deterioro.",
+    "name": "Nombre actual de la entidad afectada por el deterioro.",
+    "description": "Descripción detallada del tipo y alcance del deterioro observado.",
+    "created_at": "Fecha en que se registró el deterioro.",
+    "updated_at": "Fecha de última actualización del registro de deterioro.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+
+  "typology": {
+    "id": "Identificador único del registro de tipología documental.",
+    "name": "Nombre de la entidad o clasificación asociada a la tipología.",
+    "description": "Descripción detallada de la tipología documental.",
+    "created_at": "Fecha de creación del registro de tipología.",
+    "updated_at": "Fecha de última actualización del registro de tipología.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+  "record_file_typology": {
+    "id": "Identificador único del registro de relación entre expediente y tipología.",
+    "record_file_id": "Identificador del expediente asociado.",
+    "typology_id": "Identificador de la tipología asociada.",
+    "created_at": "Fecha en que se vinculó la tipología al expediente.",
+    "updated_at": "Fecha de la última modificación de la relación (por ejemplo, cambio o actualización de tipología).",
+    "deleted_at": "Fecha de eliminación o baja lógica de la relación (si se desvincula la tipología del expediente)."
+  },
+  "movement_history": {
+    "id": "Identificador único del movimiento histórico.",
+    "record_file_id": "Identificador del expediente asociado al movimiento.",
+    "moved_by_user_id": "Identificador del usuario que realizó el movimiento.",
+    "description": "Descripción o motivo del movimiento del expediente.",
+    "origin_status": "Estado anterior del expediente antes del movimiento. Valores posibles: fondo (archive), revisión (review), preservación (preservation), restauración (restoration).",
+    "destination_status": "Nuevo estado o etapa del expediente después del movimiento. Valores posibles: fondo (archive), revisión (review), preservación (preservation), restauración (restoration).",
+    "moved_at": "Fecha en que se realizó el movimiento del expediente.",
+    "created_at": "Fecha de creación del registro de movimiento histórico.",
+    "updated_at": "Fecha de última actualización del registro histórico.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  },
+
+  "loan": {
+    "id": "Identificador único del registro de préstamo.",
+    "record_file_id": "Identificador del expediente asociado al movimiento.",
+    "issued_by_user_id": "Identificador del usuario que autorizó o registró el préstamo del expediente.",
+    "loaded_by_user_id": "Identificador del usuario que recibió o tiene en posesión el expediente en préstamo.",
+    "description": "Descripción o motivo del movimiento del expediente.",
+    "loaded_at": "Fecha en que se realizó el préstamo del expediente.",
+    "returned_at": "Fecha en que se devolvió el expediente prestado.",
+    "created_at": "Fecha en que se registró el préstamo en el sistema.",
+    "updated_at": "Fecha de la última actualización del registro de préstamo.",
+    "deleted_at": "Fecha de eliminación o baja lógica del registro. ."
+  }
+}
