@@ -1,8 +1,6 @@
 """
 Series model for AHML Fondos.
-
-Represents a documentary series inside a fund.
-Links to catalog keys, funds, and the user who created/updated it.
+Links to catalog keys, and the user who created/updated it.
 """
 
 from datetime import datetime, timezone, date
@@ -15,7 +13,6 @@ class Series(db.Model):
     Attributes:
         id (int): Unique identifier for the series.
         catalog_key_id (int): FK to catalog_key.id (the catalog’s key this series uses).
-        fund_id (int): FK to fund.id (the fund this series belongs to).
         user_id (int): FK to user.id (who created/updated it).
         name (str): Name of the documentary series.
         acronym (str): Short code / acronym.
@@ -87,7 +84,6 @@ class Series(db.Model):
         return {
             "id": self.id,
             "catalog_key_id": self.catalog_key_id,
-            "fund_id": self.fund_id,
             "user_id": self.user_id,
             "name": self.name,
             "acronym": self.acronym,

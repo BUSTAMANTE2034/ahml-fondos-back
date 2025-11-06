@@ -13,7 +13,6 @@ class SeriesBaseSchema(Schema):
 
     id = fields.Int(dump_only=True)
     catalog_key_id = fields.Int(required=False, allow_none=True)
-    fund_id = fields.Int(required=False, allow_none=True)
     user_id = fields.Int(dump_only=True)
 
     name = fields.Str(
@@ -49,7 +48,6 @@ class SeriesUpdateSchema(Schema):
 
     id = fields.Int(required=True, error_messages={"required": "El ID de la serie es obligatorio."})
     catalog_key_id = fields.Int(allow_none=True)
-    fund_id = fields.Int(allow_none=True)
     name = fields.Str(validate=validate.Length(min=1, max=255))
     acronym = fields.Str(validate=validate.Length(max=50))
     start_date = fields.Date(allow_none=True)

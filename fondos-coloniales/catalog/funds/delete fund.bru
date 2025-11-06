@@ -1,0 +1,11 @@
+meta {
+  name: delete fund
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/funds/2
+  body: none
+  auth: inherit
+}
