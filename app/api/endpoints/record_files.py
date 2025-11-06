@@ -8,8 +8,7 @@ from flask_restx import Resource, Namespace
 from marshmallow import ValidationError
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import SQLAlchemyError
-from typing import List, Optional
-from typing import Optional
+
 from app.extensions import db
 from app.models.record_file import RecordFile
 from app.models.fund import Fund
@@ -19,6 +18,7 @@ from app.models.location import Location
 from app.models.deterioration import Deterioration
 from app.models.typology import Typology
 from app.models.record_file_typology import RecordFileTypology
+from app.models.user import User  # <- para filtrar por nombre de usuario
 from app.schemas.record_file import (
     RecordFileCreateSchema,
     RecordFileUpdateSchema,
@@ -29,9 +29,6 @@ from app.utils.security import role_required
 api = Namespace("record-files", description="Operaciones de gestión de expedientes documentales")
 
 
-# =====================================================================================
-# Helpers
-# =====================================================================================
 def _parse_date(date_str: str):
     """Intenta parsear una fecha 'YYYY-MM-DD'. Devuelve None si falla."""
     if not date_str:
@@ -56,133 +53,36 @@ def _validate_active_entity(entity, entity_name: str = "Entidad"):
     return None
 
 
-def _build_reference_code(
-    fund: Optional[Fund],
-    section: Optional[Section],
-    serie: Optional[Series],
-    box_number: Optional[str],
-    file_number: Optional[str],
-) -> str:
+def _apply_ordering(query, order_by_param: str):
     """
-    Genera el reference_code con la regla:
-        FUNDACR-SECTIONACR-SERIESACR-C.{box}-Exp.{file}
-
-    - Si no hay fondo/sección/serie se omiten.
-    - Si no hay box_number no se pone el segmento C.x
-    - Si no hay file_number se pone Exp.s/n
+    Aplica ordenamiento según el valor recibido.
+    Valores permitidos:
+        - created_at_asc / created_at_desc
+        - updated_at_asc / updated_at_desc
+        - file_date_asc / file_date_desc
+        - deterioration_updated_at_asc / deterioration_updated_at_desc
+    Por defecto: updated_at_desc
     """
-    parts = []
+    if not order_by_param:
+        return query.order_by(RecordFile.updated_at.desc())
 
-    if fund and fund.acronym:
-        parts.append(fund.acronym)
-    elif fund:
-        parts.append(fund.name)
-
-    if section and section.acronym:
-        parts.append(section.acronym)
-    elif section:
-        parts.append(section.name)
-
-    if serie and serie.acronym:
-        parts.append(serie.acronym)
-    elif serie:
-        parts.append(serie.name)
-
-    # base: FUND-SECT-SERIE
-    base_code = "-".join(parts) if parts else "EXP"
-
-    # caja
-    if box_number:
-        base_code = f"{base_code}-C.{box_number}"
-
-    # expediente
-    if file_number:
-        base_code = f"{base_code}-Exp.{file_number}"
-    else:
-        base_code = f"{base_code}-Exp.s/n"
-
-    return base_code
-
-
-def _sync_record_file_typologies(record_file, incoming_ids):
-    """
-    Sincroniza las tipologías ligadas a un expediente.
-
-    Reglas:
-    - Si no llega lista -> no hace nada.
-    - Las que están activas y ya no vienen -> se marcan deleted_at.
-    - Las que vienen y ya existen pero estaban borradas lógicamente -> se reactivan (deleted_at = NULL).
-    - Las que vienen y no existen -> se insertan.
-    - Solo se consideran tipologías que existen y no están borradas.
-    """
-    if incoming_ids is None:
-        return
-
-    # normalizar: aceptar 1 solo id o lista
-    if isinstance(incoming_ids, int):
-        incoming_ids = [incoming_ids]
-
-    if not isinstance(incoming_ids, (list, tuple, set)):
-        return
-
-    # limpiar a ints
-    clean_ids = []
-    for v in incoming_ids:
-        try:
-            clean_ids.append(int(v))
-        except (TypeError, ValueError):
-            continue
-
-    incoming_set = set(clean_ids)
-
-    # traer TODAS las relaciones actuales (activas o borradas) de este expediente
-    current_by_typ = {
-        rel.typology_id: rel
-        for rel in record_file.record_file_typologies
+    mapping = {
+        "created_at_asc": RecordFile.created_at.asc(),
+        "created_at_desc": RecordFile.created_at.desc(),
+        "updated_at_asc": RecordFile.updated_at.asc(),
+        "updated_at_desc": RecordFile.updated_at.desc(),
+        "file_date_asc": RecordFile.file_date.asc(),
+        "file_date_desc": RecordFile.file_date.desc(),
+        "deterioration_updated_at_asc": RecordFile.deterioration_status_updated_at.asc(),
+        "deterioration_updated_at_desc": RecordFile.deterioration_status_updated_at.desc(),
     }
 
-    # 1. desactivar las que están activas y YA no vienen
-    for rel in record_file.record_file_typologies:
-        if rel.deleted_at is None and rel.typology_id not in incoming_set:
-            rel.deleted_at = db.func.now()
+    sort_expr = mapping.get(order_by_param)
+    if not sort_expr:
+        # valor desconocido -> default
+        return query.order_by(RecordFile.updated_at.desc())
 
-    # 2. procesar las que vienen
-    for typ_id in incoming_set:
-        existing_rel = current_by_typ.get(typ_id)
-
-        if existing_rel:
-            # ya hay una fila para este record_file + typology
-            if existing_rel.deleted_at is not None:
-                # estaba “borrada” -> reactivarla
-                existing_rel.deleted_at = None
-                existing_rel.updated_at = db.func.now()
-            # si ya estaba activa, no hacemos nada
-            continue
-
-        # no existe relación -> validar que la tipología exista
-        typ = Typology.query.get(typ_id)
-        if not typ or typ.deleted_at is not None:
-            # tipología inválida -> la saltamos
-            continue
-
-        db.session.add(
-            RecordFileTypology(
-                record_file_id=record_file.id,
-                typology_id=typ_id,
-            )
-        )
-
-def _exists_record_file_with_number_global(
-    file_number: str,
-    exclude_id: Optional[int] = None,
-) -> bool:
-    q = RecordFile.query.filter(
-        RecordFile.deleted_at.is_(None),
-        RecordFile.file_number == file_number,
-    )
-    if exclude_id is not None:
-        q = q.filter(RecordFile.id != exclude_id)
-    return q.first() is not None
+    return query.order_by(sort_expr)
 
 
 def _serialize_record_file(obj: RecordFile):
@@ -198,7 +98,6 @@ def _serialize_record_file(obj: RecordFile):
     """
     base = RecordFileResponseSchema().dump(obj)
 
-    # user
     base["user"] = (
         {
             "id": obj.user.id,
@@ -210,7 +109,6 @@ def _serialize_record_file(obj: RecordFile):
         else None
     )
 
-    # fund
     base["fund"] = (
         {
             "id": obj.fund.id,
@@ -223,7 +121,6 @@ def _serialize_record_file(obj: RecordFile):
         else None
     )
 
-    # section
     base["section"] = (
         {
             "id": obj.section.id,
@@ -236,7 +133,6 @@ def _serialize_record_file(obj: RecordFile):
         else None
     )
 
-    # series
     base["series"] = (
         {
             "id": obj.series.id,
@@ -249,7 +145,6 @@ def _serialize_record_file(obj: RecordFile):
         else None
     )
 
-    # location
     base["location"] = (
         {
             "id": obj.location.id,
@@ -259,18 +154,19 @@ def _serialize_record_file(obj: RecordFile):
         else None
     )
 
-    # deterioration
     base["deterioration_status"] = (
         {
             "id": obj.deterioration_status.id,
             "name": obj.deterioration_status.name,
             "description": obj.deterioration_status.description,
+            "updated_at": obj.deterioration_status_updated_at.isoformat()
+            if obj.deterioration_status_updated_at
+            else None,
         }
         if obj.deterioration_status
         else None
     )
 
-    # typologies
     base["typologies"] = [
         {
             "id": rel.typology.id,
@@ -286,76 +182,77 @@ def _serialize_record_file(obj: RecordFile):
     return base
 
 
-
-# =====================================================================================
-# Rutas
-# =====================================================================================
 @api.route("")
 class RecordFileList(Resource):
     @login_required
     @role_required("admin", "manager")
     def get(self):
         """
-        Represents a documentary record file (expediente) in the AHML Fondos system.
+        Obtiene una lista paginada de expedientes no eliminados lógicamente.
 
         Descripción:
-            Obtiene una lista paginada de expedientes no eliminados lógicamente.
-            Permite aplicar filtros por:
-            - código de referencia (reference_code)
-            - asunto (subject)
-            - búsqueda libre (query)
-            - confidencialidad (sensitive_data)
-            - estado de disponibilidad (availability_status)
-            - usuario creador/modificador (user_id)
-            - fondo, sección, serie, ubicación (por ID)
-            - número de caja (box_number)
-            - rango de fecha documental (file_date_from / file_date_to)
-            - rango de fecha de creación (created_from / created_to)
-            - deterioro (deterioration_status_id)
-            - tipología (typology_id)
+            Permite filtrar por códigos, texto libre, confidencialidad, disponibilidad,
+            referencia archivística (por nombre y por id), ubicación, deterioro y tipologías.
+            También permite filtrar por rangos de fecha de creación y de fecha documental,
+            y ordenar los resultados por distintos campos.
 
         Parámetros de consulta:
             - page (int, opcional): Número de página. Por defecto 1.
             - per_page (int, opcional): Tamaño de página. Por defecto 20.
-            - reference_code (str, opcional): Filtra por coincidencia parcial.
-            - subject (str, opcional): Filtra por coincidencia parcial en el asunto.
-            - query (str, opcional): Busca en reference_code, subject y comments.
+
+            Filtros textuales directos:
+            - reference_code (str, opcional): Coincidencia parcial.
+            - subject (str, opcional): Coincidencia parcial.
+            - query (str, opcional): Búsqueda libre en reference_code, subject y comments.
+            - box_number (str, opcional): Coincidencia parcial.
+            - file_number (str, opcional): Coincidencia con el número de expediente.
+
+            Filtros booleanos / de estado:
             - sensitive_data (bool|str, opcional): "true"/"false"/"1"/"0".
             - availability_status (str, opcional): "available" | "unavailable" | "under_review" | "on_loan".
-            - user_id (int, opcional): ID del usuario que creó/modificó.
-            - fund_id (int, opcional): ID del fondo.
-            - section_id (int, opcional): ID de la sección.
-            - series_id (int, opcional): ID de la serie.
-            - location_id (int, opcional): ID de la ubicación.
-            - box_number (str, opcional): Coincidencia parcial.
-            - file_date_from (date, opcional, YYYY-MM-DD): Fecha documental inicial.
-            - file_date_to (date, opcional, YYYY-MM-DD): Fecha documental final.
-            - created_from (date, opcional, YYYY-MM-DD): Fecha de creación inicial.
-            - created_to (date, opcional, YYYY-MM-DD): Fecha de creación final.
-            - deterioration_status_id (int, opcional): ID del deterioro asociado.
-            - typology_id (int, opcional): ID de la tipología asociada.
+
+            Filtros por relación usando **nombre**:
+            - user_name (str, opcional): Busca por nombre, apellido o email del usuario.
+            - fund_name (str, opcional): Coincidencia parcial con el nombre o acrónimo del fondo.
+            - section_name (str, opcional): Coincidencia parcial con el nombre o acrónimo de la sección.
+            - series_name (str, opcional): Coincidencia parcial con el nombre o acrónimo de la serie.
+            - location_name (str, opcional): Coincidencia parcial con el nombre de la ubicación.
+            - deterioration_name (str, opcional): Coincidencia parcial con el nombre del deterioro.
+            - typology_name (str, opcional): Coincidencia parcial con el nombre de la tipología.
+
+            (aún se aceptan IDs)
+            - user_id (int, opcional)
+            - fund_id (int, opcional)
+            - section_id (int, opcional)
+            - series_id (int, opcional)
+            - location_id (int, opcional)
+            - deterioration_status_id (int, opcional)
+            - typology_id (int, opcional)
+
+            Rangos de fecha de creación (sobre created_at):
+            - created_after (date, opcional, YYYY-MM-DD)
+            - created_before (date, opcional, YYYY-MM-DD)
+
+            Rangos de fecha documental (sobre file_date):
+            - file_date_after (date, opcional, YYYY-MM-DD)
+            - file_date_before (date, opcional, YYYY-MM-DD)
+
+            Ordenamiento:
+            - order_by (str, opcional): Uno de
+                "created_at_asc", "created_at_desc",
+                "updated_at_asc", "updated_at_desc",
+                "file_date_asc", "file_date_desc",
+                "deterioration_updated_at_asc", "deterioration_updated_at_desc".
+              Por defecto: "updated_at_desc".
 
         Respuestas:
-            200: {...}
+            200: {
+                "message": "Expedientes obtenidos correctamente.",
+                "record_files": [...],
+                "pagination": {...}
+            }
         """
-        ref_param = request.args.get("reference_code", "").strip()
-        subject_param = request.args.get("subject", "").strip()
-        query_param = request.args.get("query", "").strip()
-        sensitive_param = request.args.get("sensitive_data")
-        availability_param = request.args.get("availability_status")
-        user_id_param = request.args.get("user_id")
-        fund_id_param = request.args.get("fund_id")
-        section_id_param = request.args.get("section_id")
-        series_id_param = request.args.get("series_id")
-        location_id_param = request.args.get("location_id")
-        box_number_param = request.args.get("box_number", "").strip()
-        file_date_from_param = request.args.get("file_date_from")
-        file_date_to_param = request.args.get("file_date_to")
-        created_from_param = request.args.get("created_from")
-        created_to_param = request.args.get("created_to")
-        det_status_param = request.args.get("deterioration_status_id")
-        typology_id_param = request.args.get("typology_id")
-
+        # parámetros de paginación
         try:
             page = int(request.args.get("page", 1))
             per_page = int(request.args.get("per_page", 20))
@@ -363,14 +260,58 @@ class RecordFileList(Resource):
             page = 1
             per_page = 20
 
+        # parámetros textuales
+        ref_param = request.args.get("reference_code", "").strip()
+        subject_param = request.args.get("subject", "").strip()
+        query_param = request.args.get("query", "").strip()
+        box_number_param = request.args.get("box_number", "").strip()
+
+        # estados / booleanos
+        sensitive_param = request.args.get("sensitive_data")
+        availability_param = request.args.get("availability_status")
+        file_number_param = request.args.get("file_number", "").strip()
+
+        # nombres de relaciones
+        user_name_param = request.args.get("user_name", "").strip()
+        fund_name_param = request.args.get("fund_name", "").strip()
+        section_name_param = request.args.get("section_name", "").strip()
+        series_name_param = request.args.get("series_name", "").strip()
+        location_name_param = request.args.get("location_name", "").strip()
+        deterioration_name_param = request.args.get("deterioration_name", "").strip()
+        typology_name_param = request.args.get("typology_name", "").strip()
+
+        # ids (por si acaso)
+        user_id_param = request.args.get("user_id")
+        fund_id_param = request.args.get("fund_id")
+        section_id_param = request.args.get("section_id")
+        series_id_param = request.args.get("series_id")
+        location_id_param = request.args.get("location_id")
+        det_status_param = request.args.get("deterioration_status_id")
+        typology_id_param = request.args.get("typology_id")
+
+        # rangos de fecha
+        created_after_param = request.args.get("created_after")
+        created_before_param = request.args.get("created_before")
+        file_date_after_param = request.args.get("file_date_after")
+        file_date_before_param = request.args.get("file_date_before")
+
+        # orden
+        order_by_param = request.args.get("order_by")
+
         query = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
 
+        # filtros directos
         if ref_param:
             query = query.filter(RecordFile.reference_code.ilike(f"%{ref_param}%"))
 
         if subject_param:
             query = query.filter(RecordFile.subject.ilike(f"%{subject_param}%"))
 
+        if box_number_param:
+            query = query.filter(RecordFile.box_number.ilike(f"%{box_number_param}%"))
+        
+        if file_number_param:
+            query = query.filter(RecordFile.file_number.ilike(f"%{file_number_param}%"))
         if sensitive_param is not None:
             is_sensitive = sensitive_param.lower() in ("true", "1", "yes")
             query = query.filter(RecordFile.sensitive_data.is_(is_sensitive))
@@ -378,6 +319,18 @@ class RecordFileList(Resource):
         if availability_param:
             query = query.filter(RecordFile.availability_status == availability_param)
 
+        # búsqueda libre
+        if query_param:
+            like = f"%{query_param}%"
+            query = query.filter(
+                or_(
+                    RecordFile.reference_code.ilike(like),
+                    RecordFile.subject.ilike(like),
+                    RecordFile.comments.ilike(like),
+                )
+            )
+
+        # filtros por ID clásicos
         if user_id_param:
             try:
                 uid = int(user_id_param)
@@ -398,23 +351,6 @@ class RecordFileList(Resource):
                 except ValueError:
                     pass
 
-        if box_number_param:
-            query = query.filter(RecordFile.box_number.ilike(f"%{box_number_param}%"))
-
-        ffrom = _parse_date(file_date_from_param)
-        fto = _parse_date(file_date_to_param)
-        if ffrom:
-            query = query.filter(RecordFile.file_date >= ffrom)
-        if fto:
-            query = query.filter(RecordFile.file_date <= fto)
-
-        cfrom = _parse_date(created_from_param)
-        cto = _parse_date(created_to_param)
-        if cfrom:
-            query = query.filter(RecordFile.created_at >= datetime.combine(cfrom, datetime.min.time()))
-        if cto:
-            query = query.filter(RecordFile.created_at <= datetime.combine(cto, datetime.max.time()))
-
         if det_status_param:
             try:
                 det_id = int(det_status_param)
@@ -422,16 +358,74 @@ class RecordFileList(Resource):
             except ValueError:
                 pass
 
-        if query_param:
-            like = f"%{query_param}%"
-            query = query.filter(
+        # filtros por NOMBRE -> hacemos joins condicionales
+        if user_name_param:
+            like = f"%{user_name_param}%"
+            query = query.join(User, User.id == RecordFile.user_id).filter(
                 or_(
-                    RecordFile.reference_code.ilike(like),
-                    RecordFile.subject.ilike(like),
-                    RecordFile.comments.ilike(like),
+                    User.first_name.ilike(like),
+                    User.last_name.ilike(like),
+                    User.email.ilike(like),
                 )
             )
 
+        if fund_name_param:
+            like = f"%{fund_name_param}%"
+            query = query.join(Fund, Fund.id == RecordFile.fund_id).filter(
+                or_(
+                    Fund.name.ilike(like),
+                    Fund.acronym.ilike(like),
+                )
+            )
+
+        if section_name_param:
+            like = f"%{section_name_param}%"
+            query = query.join(Section, Section.id == RecordFile.section_id).filter(
+                or_(
+                    Section.name.ilike(like),
+                    Section.acronym.ilike(like),
+                )
+            )
+
+        if series_name_param:
+            like = f"%{series_name_param}%"
+            query = query.join(Series, Series.id == RecordFile.series_id).filter(
+                or_(
+                    Series.name.ilike(like),
+                    Series.acronym.ilike(like),
+                )
+            )
+
+        if location_name_param:
+            like = f"%{location_name_param}%"
+            query = query.join(Location, Location.id == RecordFile.location_id).filter(
+                Location.name.ilike(like)
+            )
+
+        if deterioration_name_param:
+            like = f"%{deterioration_name_param}%"
+            query = query.join(Deterioration, Deterioration.id == RecordFile.deterioration_status_id).filter(
+                Deterioration.name.ilike(like)
+            )
+
+        if typology_name_param:
+            like = f"%{typology_name_param}%"
+            # join a la tabla puente + typology, considerando solo relaciones activas
+            query = query.join(
+                RecordFileTypology,
+                and_(
+                    RecordFileTypology.record_file_id == RecordFile.id,
+                    RecordFileTypology.deleted_at.is_(None),
+                ),
+            ).join(
+                Typology,
+                and_(
+                    Typology.id == RecordFileTypology.typology_id,
+                    Typology.deleted_at.is_(None),
+                ),
+            ).filter(Typology.name.ilike(like))
+
+        # también permitir typology_id directo
         if typology_id_param:
             try:
                 t_id = int(typology_id_param)
@@ -446,7 +440,24 @@ class RecordFileList(Resource):
             except ValueError:
                 pass
 
-        query = query.order_by(RecordFile.updated_at.desc())
+        # rangos de fecha de creación
+        created_after = _parse_date(created_after_param)
+        created_before = _parse_date(created_before_param)
+        if created_after:
+            query = query.filter(RecordFile.created_at >= datetime.combine(created_after, datetime.min.time()))
+        if created_before:
+            query = query.filter(RecordFile.created_at <= datetime.combine(created_before, datetime.max.time()))
+
+        # rangos de fecha documental
+        file_date_after = _parse_date(file_date_after_param)
+        file_date_before = _parse_date(file_date_before_param)
+        if file_date_after:
+            query = query.filter(RecordFile.file_date >= file_date_after)
+        if file_date_before:
+            query = query.filter(RecordFile.file_date <= file_date_before)
+
+        # ordenamiento
+        query = _apply_ordering(query, order_by_param)
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -465,6 +476,7 @@ class RecordFileList(Resource):
                 "prev_page": paginated.prev_num if paginated.has_prev else None,
             },
         }, 200
+
 
     @login_required
     @role_required("admin", "manager")
@@ -783,14 +795,23 @@ class RecordFileDetail(Resource):
         # deterioro
         if "deterioration_status_id" in data:
             did = data["deterioration_status_id"]
+
+            # guardar el valor anterior para comparar
+            old_deterioration_id = rf.deterioration_status_id
+
             if did is not None:
                 det = Deterioration.query.get(did)
                 if not det or det.deleted_at is not None:
                     return {
                         "message": "El deterioro especificado no existe o está eliminado."
                     }, 400
+
+            # asignar el nuevo (puede ser None)
             rf.deterioration_status_id = did
-            rf.deterioration_status_updated_at = db.func.now()
+
+            # solo si cambió el valor, actualizamos la fecha
+            if did != old_deterioration_id:
+                rf.deterioration_status_updated_at = db.func.now()
 
         # campos simples
         for field in [

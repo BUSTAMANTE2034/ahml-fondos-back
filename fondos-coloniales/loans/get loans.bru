@@ -1,0 +1,11 @@
+meta {
+  name: get loans
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/loans
+  body: none
+  auth: inherit
+}

@@ -1,0 +1,11 @@
+meta {
+  name: get movement
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BACKEND_URL}}/movement-history/3
+  body: none
+  auth: inherit
+}

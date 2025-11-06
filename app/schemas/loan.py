@@ -20,19 +20,6 @@ class LoanBaseSchema(Schema):
         },
     )
 
-    issued_by_user_id = fields.Int(
-        required=True,
-        error_messages={
-            "required": "El ID del usuario que autoriza el préstamo es obligatorio.",
-        },
-    )
-
-    loaded_by_user_id = fields.Int(
-        required=True,
-        error_messages={
-            "required": "El ID del usuario que recibe el expediente es obligatorio.",
-        },
-    )
 
     description = fields.Str(required=False)
 

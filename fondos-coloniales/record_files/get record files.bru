@@ -5,7 +5,38 @@ meta {
 }
 
 get {
-  url: {{BACKEND_URL}}/record-files
+  url: {{BACKEND_URL}}/record-files?file_number=1294
   body: none
   auth: inherit
+}
+
+params:query {
+  file_number: 1294
+  ~page: 
+  ~per_page: 
+  ~reference_code: 1294
+  ~subject: 
+  ~query: 
+  ~box_number: true
+  ~sensitive_data: 
+  ~availability_status: 
+  ~user_name: 
+  ~fund_name: 
+  ~section_name: 
+  ~series_name: 
+  ~location_name: 
+  ~deterioration_name : 
+  ~typology_name: 
+  ~created_after: 
+  ~created_before: 
+  ~file_date_after: 
+  ~file_date_before: 
+  ~created_at_asc: 
+  ~created_at_desc: 
+  ~updated_at_asc: 
+  ~updated_at_desc: 
+  ~file_date_asc: 
+  ~file_date_desc: 
+  ~deterioration_updated_at_asc: 
+  ~deterioration_updated_at_desc: 
 }

@@ -20,7 +20,8 @@ from app.api.endpoints.locations import api as locations
 from app.api.endpoints.deteriorations import api as deteriorations
 from app.api.endpoints.typologies import api as typologies
 from app.api.endpoints.record_files import api as record_files
-
+from app.api.endpoints.movements import api as movements
+from app.api.endpoints.loans import api as loans
 
 # Crear instancia principal de API y Blueprint
 api_blueprint = Blueprint("api", __name__, url_prefix="/")
@@ -45,6 +46,8 @@ api.add_namespace(locations)
 api.add_namespace(deteriorations)
 api.add_namespace(typologies)
 api.add_namespace(record_files)
+api.add_namespace(movements)
+api.add_namespace(loans)
 
 
 # Función para registrar el blueprint en la aplicación Flask
