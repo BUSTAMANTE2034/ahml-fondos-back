@@ -1,0 +1,19 @@
+meta {
+  name: create typology
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BACKEND_URL}}/typologies
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Solicitud ciudadana",
+    "description": "Trámites iniciados por particulares para gestionar servicios, apoyos o autorizaciones."
+  }
+  
+}
