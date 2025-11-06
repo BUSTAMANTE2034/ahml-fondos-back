@@ -1,0 +1,21 @@
+meta {
+  name: update catalog key
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/catalog-keys/2
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "entity_type": "section",
+    "key": "ARCH",
+    "name": "Sección de Archivo Histórico",
+    "description": "Conjunto de expedientes históricos clasificados por tema y año."
+  }
+  
+}

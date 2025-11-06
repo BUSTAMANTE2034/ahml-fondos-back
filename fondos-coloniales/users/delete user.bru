@@ -1,0 +1,11 @@
+meta {
+  name: delete user
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/users/4
+  body: none
+  auth: inherit
+}

@@ -1,0 +1,20 @@
+meta {
+  name: get catalog keys
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/catalog-keys?user_id=1
+  body: none
+  auth: inherit
+}
+
+params:query {
+  user_id: 1
+  ~query: FPM
+  ~page: 
+  ~per_page : 
+  ~per_page : 
+  ~query: 
+}
