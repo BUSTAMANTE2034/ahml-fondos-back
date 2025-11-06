@@ -1,0 +1,15 @@
+meta {
+  name: get report
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BACKEND_URL}}/record-files/export-pdf?file_number=3
+  body: none
+  auth: inherit
+}
+
+params:query {
+  file_number: 3
+}

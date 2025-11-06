@@ -38,7 +38,6 @@ def create_app() -> Flask:
     app.config.from_object("app.config.Config")
 
     # Initialize Flask extensions
-    print(f"SQLALCHEMY_ENGINE_OPTIONS = {app.config.get('SQLALCHEMY_ENGINE_OPTIONS')}")
 
     db.init_app(app)
     bcrypt.init_app(app)

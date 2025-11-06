@@ -26,7 +26,188 @@ from app.schemas.record_file import (
 )
 from app.utils.security import role_required
 
+from io import BytesIO
+from flask import request, make_response  # ya tienes request, solo agrega make_response
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+
 api = Namespace("record-files", description="Operaciones de gestión de expedientes documentales")
+def _build_record_file_query_from_request(req):
+    """Devuelve un query de RecordFile con TODOS los filtros que ya usas en el GET."""
+    # mismos parámetros que ya tienes
+    ref_param = req.args.get("reference_code", "").strip()
+    subject_param = req.args.get("subject", "").strip()
+    query_param = req.args.get("query", "").strip()
+    box_number_param = req.args.get("box_number", "").strip()
+    file_number_param = req.args.get("file_number", "").strip()
+
+    sensitive_param = req.args.get("sensitive_data")
+    availability_param = req.args.get("availability_status")
+
+    user_name_param = req.args.get("user_name", "").strip()
+    fund_name_param = req.args.get("fund_name", "").strip()
+    section_name_param = req.args.get("section_name", "").strip()
+    series_name_param = req.args.get("series_name", "").strip()
+    location_name_param = req.args.get("location_name", "").strip()
+    deterioration_name_param = req.args.get("deterioration_name", "").strip()
+    typology_name_param = req.args.get("typology_name", "").strip()
+
+    user_id_param = req.args.get("user_id")
+    fund_id_param = req.args.get("fund_id")
+    section_id_param = req.args.get("section_id")
+    series_id_param = req.args.get("series_id")
+    location_id_param = req.args.get("location_id")
+    det_status_param = req.args.get("deterioration_status_id")
+    typology_id_param = req.args.get("typology_id")
+
+    created_after_param = req.args.get("created_after")
+    created_before_param = req.args.get("created_before")
+    file_date_after_param = req.args.get("file_date_after")
+    file_date_before_param = req.args.get("file_date_before")
+
+    order_by_param = req.args.get("order_by")
+
+    q = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
+
+    if ref_param:
+        q = q.filter(RecordFile.reference_code.ilike(f"%{ref_param}%"))
+    if subject_param:
+        q = q.filter(RecordFile.subject.ilike(f"%{subject_param}%"))
+    if box_number_param:
+        q = q.filter(RecordFile.box_number.ilike(f"%{box_number_param}%"))
+    if file_number_param:
+        q = q.filter(RecordFile.file_number.ilike(f"%{file_number_param}%"))
+
+    if sensitive_param is not None:
+        is_sensitive = sensitive_param.lower() in ("true", "1", "yes")
+        q = q.filter(RecordFile.sensitive_data.is_(is_sensitive))
+
+    if availability_param:
+        q = q.filter(RecordFile.availability_status == availability_param)
+
+    if query_param:
+        like = f"%{query_param}%"
+        q = q.filter(
+            or_(
+                RecordFile.reference_code.ilike(like),
+                RecordFile.subject.ilike(like),
+                RecordFile.comments.ilike(like),
+            )
+        )
+
+    if user_id_param:
+        try:
+            uid = int(user_id_param)
+            q = q.filter(RecordFile.user_id == uid)
+        except ValueError:
+            pass
+
+    for field, param in [
+        (RecordFile.fund_id, fund_id_param),
+        (RecordFile.section_id, section_id_param),
+        (RecordFile.series_id, series_id_param),
+        (RecordFile.location_id, location_id_param),
+    ]:
+        if param:
+            try:
+                pid = int(param)
+                q = q.filter(field == pid)
+            except ValueError:
+                pass
+
+    if det_status_param:
+        try:
+            det_id = int(det_status_param)
+            q = q.filter(RecordFile.deterioration_status_id == det_id)
+        except ValueError:
+            pass
+
+    # por nombre
+    if user_name_param:
+        like = f"%{user_name_param}%"
+        q = q.join(User, User.id == RecordFile.user_id).filter(
+            or_(User.first_name.ilike(like), User.last_name.ilike(like), User.email.ilike(like))
+        )
+
+    if fund_name_param:
+        like = f"%{fund_name_param}%"
+        q = q.join(Fund, Fund.id == RecordFile.fund_id).filter(
+            or_(Fund.name.ilike(like), Fund.acronym.ilike(like))
+        )
+
+    if section_name_param:
+        like = f"%{section_name_param}%"
+        q = q.join(Section, Section.id == RecordFile.section_id).filter(
+            or_(Section.name.ilike(like), Section.acronym.ilike(like))
+        )
+
+    if series_name_param:
+        like = f"%{series_name_param}%"
+        q = q.join(Series, Series.id == RecordFile.series_id).filter(
+            or_(Series.name.ilike(like), Series.acronym.ilike(like))
+        )
+
+    if location_name_param:
+        like = f"%{location_name_param}%"
+        q = q.join(Location, Location.id == RecordFile.location_id).filter(Location.name.ilike(like))
+
+    if deterioration_name_param:
+        like = f"%{deterioration_name_param}%"
+        q = q.join(Deterioration, Deterioration.id == RecordFile.deterioration_status_id).filter(
+            Deterioration.name.ilike(like)
+        )
+
+    if typology_name_param:
+        like = f"%{typology_name_param}%"
+        q = q.join(
+            RecordFileTypology,
+            and_(
+                RecordFileTypology.record_file_id == RecordFile.id,
+                RecordFileTypology.deleted_at.is_(None),
+            ),
+        ).join(
+            Typology,
+            and_(
+                Typology.id == RecordFileTypology.typology_id,
+                Typology.deleted_at.is_(None),
+            ),
+        ).filter(Typology.name.ilike(like))
+
+    if typology_id_param:
+        try:
+            t_id = int(typology_id_param)
+            q = q.join(
+                RecordFileTypology,
+                and_(
+                    RecordFileTypology.record_file_id == RecordFile.id,
+                    RecordFileTypology.deleted_at.is_(None),
+                    RecordFileTypology.typology_id == t_id,
+                ),
+            )
+        except ValueError:
+            pass
+
+    # fechas
+    created_after = _parse_date(created_after_param)
+    created_before = _parse_date(created_before_param)
+    if created_after:
+        q = q.filter(RecordFile.created_at >= datetime.combine(created_after, datetime.min.time()))
+    if created_before:
+        q = q.filter(RecordFile.created_at <= datetime.combine(created_before, datetime.max.time()))
+
+    file_date_after = _parse_date(file_date_after_param)
+    file_date_before = _parse_date(file_date_before_param)
+    if file_date_after:
+        q = q.filter(RecordFile.file_date >= file_date_after)
+    if file_date_before:
+        q = q.filter(RecordFile.file_date <= file_date_before)
+
+    # orden
+    q = _apply_ordering(q, order_by_param)
+
+    return q
 
 
 def _parse_date(date_str: str):
@@ -298,7 +479,9 @@ class RecordFileList(Resource):
         # orden
         order_by_param = request.args.get("order_by")
 
-        query = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
+        query = _build_record_file_query_from_request(request)
+        # query = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
+
 
         # filtros directos
         if ref_param:
@@ -909,3 +1092,74 @@ class RecordFileDetail(Resource):
         db.session.commit()
 
         return {"message": "Expediente eliminado correctamente."}, 200
+
+REPORT_COLOR = colors.Color(115/255.0, 74/255.0, 31/255.0)  # #734A1F
+
+def _build_record_files_pdf(record_files):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+    elements = []
+    styles = getSampleStyleSheet()
+
+    title = Paragraph("Reporte de expedientes", styles["Heading2"])
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+
+    # encabezados de la tabla
+    data = [
+        ["ID", "Código", "Asunto", "Fondo", "Sección", "Ubicación", "Estado", "Fecha doc."]
+    ]
+
+    for rf in record_files:
+        data.append([
+            rf.id,
+            rf.reference_code or "",
+            rf.subject or "",
+            rf.fund.name if rf.fund else "",
+            rf.section.name if rf.section else "",
+            rf.location.name if rf.location else "",
+            rf.availability_status or "",
+            rf.file_date.isoformat() if rf.file_date else "",
+        ])
+
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), REPORT_COLOR),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.5, REPORT_COLOR),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+@api.route("/export-pdf")
+class RecordFileExportPDF(Resource):
+    @login_required
+    @role_required("admin", "manager")
+    def get(self):
+        # reutilizamos TODOS los filtros del get normal
+        query = _build_record_file_query_from_request(request)
+
+        # por seguridad ponemos un tope
+        max_rows = 1000
+        record_files = query.limit(max_rows).all()
+
+        pdf_buffer = _build_record_files_pdf(record_files)
+
+        resp = make_response(pdf_buffer.read())
+        resp.headers.set("Content-Type", "application/pdf")
+        resp.headers.set(
+            "Content-Disposition",
+            "attachment",
+            filename="reporte_expedientes.pdf",
+        )
+        return resp
