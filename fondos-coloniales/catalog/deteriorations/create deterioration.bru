@@ -1,0 +1,18 @@
+meta {
+  name: create deterioration
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BACKEND_URL}}/deteriorations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Baja Documental",
+    "description": "No se encuentra en condiciones para consulta ni tratado."
+  }
+}

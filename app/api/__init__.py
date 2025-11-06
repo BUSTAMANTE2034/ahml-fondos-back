@@ -17,6 +17,7 @@ from app.api.endpoints.funds import api as funds
 from app.api.endpoints.sections import api as sections
 from app.api.endpoints.series import api as series
 from app.api.endpoints.locations import api as locations
+from app.api.endpoints.deteriorations import api as deteriorations
 
 
 # Crear instancia principal de API y Blueprint
@@ -39,6 +40,7 @@ api.add_namespace(funds)
 api.add_namespace(sections)
 api.add_namespace(series)
 api.add_namespace(locations)
+api.add_namespace(deteriorations)
 
 
 # Función para registrar el blueprint en la aplicación Flask

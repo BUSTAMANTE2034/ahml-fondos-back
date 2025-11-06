@@ -1,11 +1,11 @@
 meta {
-  name: get locations
+  name: get deteriorations
   type: http
   seq: 1
 }
 
 get {
-  url: {{BACKEND_URL}}/locations
+  url: {{BACKEND_URL}}/deteriorations
   body: none
   auth: inherit
 }
@@ -14,6 +14,6 @@ params:query {
   ~page: 
   ~per_page: 
   ~user_id: 
-  ~name: 
-  ~query: 
+  ~name: baja
+  ~query: malo
 }
