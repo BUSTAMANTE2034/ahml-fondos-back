@@ -60,20 +60,6 @@ class FundList(Resource):
 
         Respuestas:
             200: Estructura con lista de fondos y datos de paginación.
-                {
-                    "message": "...",
-                    "funds": [...],
-                    "pagination": {
-                        "total": int,
-                        "pages": int,
-                        "current_page": int,
-                        "per_page": int,
-                        "has_next": bool,
-                        "has_prev": bool,
-                        "next_page": int|null,
-                        "prev_page": int|null
-                    }
-                }
         """
         is_active_param = request.args.get("is_active")
         user_id_param = request.args.get("user_id")
@@ -104,7 +90,6 @@ class FundList(Resource):
                 user_id_int = int(user_id_param)
                 query = query.filter(Fund.user_id == user_id_int)
             except ValueError:
-                # si no es entero, se ignora el filtro
                 pass
 
         # filtro por catalog_key
@@ -199,11 +184,15 @@ class FundList(Resource):
         Descripción:
             Crea un nuevo fondo documental y lo asocia al usuario autenticado
             como creador/modificador. Si se envía un catalog_key_id, se valida
-            que exista y que su entity_type sea 'fund'. Si no lo es, se rechaza
-            la creación.
+            que:
+                1) exista,
+                2) no esté eliminada (deleted_at == NULL),
+                3) esté activa (is_active == TRUE),
+                4) su entity_type sea 'fund'.
+            Si algo de eso falla, se rechaza.
 
         Cuerpo (JSON):
-            - catalog_key_id (int, opcional): ID de la clave de catálogo asociada. Debe ser de tipo 'fund'.
+            - catalog_key_id (int, opcional): ID de la clave de catálogo asociada. Debe ser de tipo 'fund' y estar activa.
             - name (str, requerido): Nombre del fondo.
             - acronym (str, opcional): Acrónimo del fondo.
             - start_date (str, opcional, formato YYYY-MM-DD): Fecha de inicio de vigencia.
@@ -212,7 +201,7 @@ class FundList(Resource):
 
         Respuestas:
             201: Fondo creado correctamente.
-            400: Error de validación o la catalog_key no existe o no es del tipo 'fund'.
+            400: Error de validación o la catalog_key no es válida/activa/del tipo correcto.
         """
         schema = FundCreateSchema()
         try:
@@ -228,9 +217,15 @@ class FundList(Resource):
                 CatalogKey.deleted_at.is_(None),
             ).first()
             if not ck:
-                return {"message": "La clave de catálogo especificada no existe."}, 400
+                return {
+                    "message": "La clave de catálogo especificada no existe o está eliminada."
+                }, 400
 
-            # candado: solo catalog_keys de tipo 'fund'
+            if not ck.is_active:
+                return {
+                    "message": "La clave de catálogo está inactiva y no puede usarse en un fondo."
+                }, 400
+
             if ck.entity_type != "fund":
                 return {
                     "message": "La clave de catálogo no es del tipo adecuado para un fondo.",
@@ -338,15 +333,18 @@ class FundDetail(Resource):
         Descripción:
             Actualiza parcialmente un fondo documental existente. Permite modificar
             el nombre, acrónimo, fechas de vigencia, estado y la clave de catálogo
-            asociada. Si se cambia la clave de catálogo, se valida que exista y que
-            sea de tipo 'fund'. La actualización registra al usuario que hizo el
-            cambio.
+            asociada. Si se cambia la clave de catálogo, se valida que:
+                1) exista,
+                2) no esté eliminada,
+                3) esté activa,
+                4) sea de tipo 'fund'.
+            La actualización registra al usuario que hizo el cambio.
 
         Parámetros de ruta:
             - fund_id (int): Identificador del fondo a actualizar.
 
         Cuerpo (JSON):
-            - catalog_key_id (int, opcional): Nueva clave de catálogo (debe ser de tipo 'fund').
+            - catalog_key_id (int, opcional): Nueva clave de catálogo (debe ser de tipo 'fund', activa y no eliminada).
             - name (str, opcional): Nuevo nombre del fondo.
             - acronym (str, opcional): Nuevo acrónimo del fondo.
             - start_date (str, opcional, formato YYYY-MM-DD): Nueva fecha de inicio.
@@ -355,7 +353,7 @@ class FundDetail(Resource):
 
         Respuestas:
             200: Fondo actualizado correctamente.
-            400: Error de validación o clave de catálogo inválida o de tipo incorrecto.
+            400: Error de validación o clave de catálogo inválida/inactiva/eliminada o de tipo incorrecto.
             404: Fondo no encontrado.
         """
         schema = FundUpdateSchema()
@@ -379,7 +377,14 @@ class FundDetail(Resource):
                     CatalogKey.deleted_at.is_(None),
                 ).first()
                 if not ck:
-                    return {"message": "La clave de catálogo especificada no existe."}, 400
+                    return {
+                        "message": "La clave de catálogo especificada no existe o está eliminada."
+                    }, 400
+
+                if not ck.is_active:
+                    return {
+                        "message": "La clave de catálogo está inactiva y no puede usarse en un fondo."
+                    }, 400
 
                 if ck.entity_type != "fund":
                     return {

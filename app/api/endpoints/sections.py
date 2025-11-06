@@ -182,11 +182,15 @@ class SectionList(Resource):
 
         Descripción:
             Crea una nueva sección administrativa y la asocia al usuario autenticado
-            como creador/modificador. Si se envía un catalog_key_id, se valida que
-            exista y que su entity_type sea 'section'. Si no cumple, se rechaza.
+            como creador/modificador. Si se envía un catalog_key_id, se valida que:
+                1) exista,
+                2) no esté eliminada (deleted_at == NULL),
+                3) esté activa (is_active == TRUE),
+                4) sea del tipo 'section'.
+            Si no cumple alguno de los puntos anteriores, se rechaza.
 
         Cuerpo (JSON):
-            - catalog_key_id (int, opcional): ID de la clave de catálogo asociada. Debe ser de tipo 'section'.
+            - catalog_key_id (int, opcional): ID de la clave de catálogo asociada. Debe ser de tipo 'section' y estar activa.
             - name (str, requerido): Nombre de la sección.
             - acronym (str, opcional): Acrónimo de la sección.
             - start_date (str, opcional, formato YYYY-MM-DD): Fecha de inicio de vigencia.
@@ -195,7 +199,7 @@ class SectionList(Resource):
 
         Respuestas:
             201: Sección creada correctamente.
-            400: Error de validación o catalog key inexistente o de tipo incorrecto.
+            400: Error de validación o catalog key inexistente/inactiva/de tipo incorrecto.
         """
         schema = SectionCreateSchema()
         try:
@@ -208,10 +212,17 @@ class SectionList(Resource):
         if catalog_key_id:
             ck = CatalogKey.query.filter(
                 CatalogKey.id == catalog_key_id,
+                # este filter ya exige que deleted_at sea NULL
                 CatalogKey.deleted_at.is_(None),
             ).first()
             if not ck:
-                return {"message": "La clave de catálogo especificada no existe."}, 400
+                return {"message": "La clave de catálogo especificada no existe o está eliminada."}, 400
+
+            # nueva validación: debe estar activa
+            if not ck.is_active:
+                return {
+                    "message": "La clave de catálogo está inactiva y no puede usarse en una sección."
+                }, 400
 
             if ck.entity_type != "section":
                 return {
@@ -320,14 +331,18 @@ class SectionDetail(Resource):
         Descripción:
             Actualiza parcialmente una sección administrativa existente. Permite modificar
             el nombre, acrónimo, fechas de vigencia, estado y la clave de catálogo asociada.
-            Si se cambia la clave de catálogo, se valida que exista y que sea de tipo 'section'.
+            Si se cambia la clave de catálogo, se valida que:
+                1) exista,
+                2) no esté eliminada (deleted_at == NULL),
+                3) esté activa (is_active == TRUE),
+                4) sea de tipo 'section'.
             La modificación se registra con el usuario autenticado.
 
         Parámetros de ruta:
             - section_id (int): Identificador de la sección a actualizar.
 
         Cuerpo (JSON):
-            - catalog_key_id (int, opcional): Nueva clave de catálogo (debe ser de tipo 'section').
+            - catalog_key_id (int, opcional): Nueva clave de catálogo (debe ser de tipo 'section', activa y no eliminada).
             - name (str, opcional): Nuevo nombre de la sección.
             - acronym (str, opcional): Nuevo acrónimo de la sección.
             - start_date (str, opcional, formato YYYY-MM-DD): Nueva fecha de inicio de vigencia.
@@ -336,7 +351,7 @@ class SectionDetail(Resource):
 
         Respuestas:
             200: Sección actualizada correctamente.
-            400: Error de validación o clave de catálogo inválida o de tipo incorrecto.
+            400: Error de validación o clave de catálogo inválida/inactiva/eliminada o de tipo incorrecto.
             404: Sección no encontrada.
         """
         schema = SectionUpdateSchema()
@@ -360,7 +375,12 @@ class SectionDetail(Resource):
                     CatalogKey.deleted_at.is_(None),
                 ).first()
                 if not ck:
-                    return {"message": "La clave de catálogo especificada no existe."}, 400
+                    return {"message": "La clave de catálogo especificada no existe o está eliminada."}, 400
+
+                if not ck.is_active:
+                    return {
+                        "message": "La clave de catálogo está inactiva y no puede usarse en una sección."
+                    }, 400
 
                 if ck.entity_type != "section":
                     return {
