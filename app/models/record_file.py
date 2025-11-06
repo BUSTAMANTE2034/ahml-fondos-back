@@ -6,7 +6,7 @@ Includes archival references (fund, section, series), physical location,
 availability status, preservation dates and audit timestamps.
 """
 
-from datetime import date
+from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -15,47 +15,45 @@ class RecordFile(db.Model):
 
     Attributes:
         id (int): Unique identifier of the record file.
-        reference_code (str): Classification code built from fund/section/series and year/number.
-        file_number (str): Internal or sequential number within the series.
+        reference_code (str): Classification code built from fund/section/series and number.
+        file_number (str): Internal or sequential number within the series/box.
         subject (str): Descriptive title or main topic of the record file.
-        # typologies (list|json): Document typologies associated to the record (stored as JSON array of IDs).
         sensitive_data (bool): Indicates if the record contains sensitive/confidential information.
         user_id (int): Identifier of the user who created or updated the record.
         comments (str): Additional notes or observations about the record.
         availability_status (str): Current availability (available / unavailable / under_review / on_loan).
-
-        fund_id (int): Identifier of the fund this record belongs to (fund.id).
-        section_id (int): Identifier of the section this record belongs to (section.id).
-        series_id (int): Identifier of the series this record belongs to (series.id).
-        location_id (int): Identifier of the physical location where the record is stored.
-
-        box_number (str): Physical box number where the record is archived.
-        page_count (int): Total number of pages/folios in the record.
-
-        file_date (date): Date of the main document or related event.
-        created_at (datetime): Timestamp when the record was first created.
-        updated_at (datetime): Timestamp when the record was last updated.
-        deleted_at (datetime): Timestamp of logical deletion (if any).
-
-        last_preservation_date (date): Date of the last preservation-related action.
-        last_fund_date (date): Last date when the record was associated to the fund/period.
-        deterioration_status_id (int): Current conservation/deterioration status.
-        deterioration_status_updated_at (datetime): Timestamp of the last conservation status update.
+        fund_id (int): FK to fund.id.
+        section_id (int): FK to section.id.
+        series_id (int): FK to series.id.
+        location_id (int): FK to location.id.
+        box_number (str): Physical box number.
+        page_count (int): Total number of pages.
+        file_date (date): Main document date.
+        created_at (datetime): Creation timestamp.
+        updated_at (datetime): Last update timestamp.
+        deleted_at (datetime): Soft delete timestamp.
+        last_preservation_date (date): Last preservation action date.
+        last_fund_date (date): Last date associated to the fund/period.
+        deterioration_status_id (int): FK to deterioration.id.
+        deterioration_status_updated_at (datetime): When deterioration status was updated.
     """
 
     __tablename__ = "record_file"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
 
+    # lo vamos a generar en el endpoint, pero aquí lo dejamos NOT NULL
     reference_code = db.Column(db.String(255), nullable=False)
+
+    # nuevo campo para construir el código
     file_number = db.Column(db.String(50), nullable=True)
+
     subject = db.Column(db.String(255), nullable=False)
 
-    # typologies as JSON array of IDs
-    # typologies = db.Column(db.JSON, nullable=True, default=list)
-
+    # confidencialidad
     sensitive_data = db.Column(db.Boolean, default=False, nullable=False)
 
+    # quién lo creó / actualizó
     user_id = db.Column(
         db.Integer,
         db.ForeignKey("user.id"),
@@ -64,13 +62,14 @@ class RecordFile(db.Model):
 
     comments = db.Column(db.Text, nullable=True)
 
+    # available / unavailable / under_review / on_loan
     availability_status = db.Column(
         db.String(20),
         nullable=False,
         default="available",
     )
 
-    # archival references
+    # referencias archivísticas
     fund_id = db.Column(
         db.Integer,
         db.ForeignKey("fund.id"),
@@ -92,28 +91,28 @@ class RecordFile(db.Model):
         nullable=True,
     )
 
-    # physical data
+    # datos físicos
     box_number = db.Column(db.String(50), nullable=True)
     page_count = db.Column(db.Integer, nullable=True)
 
-    # documentary date
+    # fecha documental
     file_date = db.Column(db.Date, nullable=True)
 
-    # audit (usar hora del servidor MySQL)
+    # auditoría
     created_at = db.Column(
-        db.DateTime,
-        server_default=db.func.now(),
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime,
-        server_default=db.func.now(),
-        server_onupdate=db.func.now(),
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)
 
-    # preservation / conservation
+    # preservación / conservación
     last_preservation_date = db.Column(db.Date, nullable=True)
     last_fund_date = db.Column(db.Date, nullable=True)
 
@@ -124,7 +123,7 @@ class RecordFile(db.Model):
     )
     deterioration_status_updated_at = db.Column(db.DateTime, nullable=True)
 
-    # relations
+    # relaciones
     fund = db.relationship("Fund", backref="record_files", lazy=True)
     section = db.relationship("Section", backref="record_files", lazy=True)
     series = db.relationship("Series", backref="record_files", lazy=True)
@@ -136,13 +135,11 @@ class RecordFile(db.Model):
         return f"<RecordFile {self.id}: {self.reference_code} - {self.subject}>"
 
     def to_json(self) -> dict:
-        """Serialize the record file to a JSON-friendly dict."""
         return {
             "id": self.id,
             "reference_code": self.reference_code,
             "file_number": self.file_number,
             "subject": self.subject,
-            # "typologies": self.typologies,
             "sensitive_data": self.sensitive_data,
             "user_id": self.user_id,
             "comments": self.comments,

@@ -1,0 +1,11 @@
+meta {
+  name: get record files
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/record-files
+  body: none
+  auth: inherit
+}

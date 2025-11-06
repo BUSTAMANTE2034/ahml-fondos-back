@@ -1,11 +1,11 @@
 meta {
-  name: create section
+  name: update serie
   type: http
-  seq: 3
+  seq: 4
 }
 
-post {
-  url: {{BACKEND_URL}}/series
+put {
+  url: {{BACKEND_URL}}/series/1
   body: json
   auth: inherit
 }
@@ -13,8 +13,8 @@ post {
 body:json {
   {
     "catalog_key_id": 1,
-    "name": "Presidencia Municipal SEries",
-    "acronym": "FPMGD",
+    "name": "Presidencia Municipal",
+    "acronym": "FPM",
     "start_date": "1985-01-01",
     "end_date": "2005-12-31",
     "is_active": true

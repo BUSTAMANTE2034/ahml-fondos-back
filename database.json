@@ -16,7 +16,6 @@
     "id": "Identificador único del expediente.",
 
     "reference_code": "Código de clasificación único generado a partir de los acrónimos del fondo, la sección y la serie, junto con el año o número del expediente.",
-    "file_number": "Número secuencial o interno asignado al expediente dentro de su serie.",
     "subject": "Título o asunto descriptivo del expediente (resumen del contenido o tema principal).",
     "typologies": "----CAMPO RELACIONAL---- Tipologías documentales asociadas al expediente (array de IDs).",
     "sensitive_data": "Indica si el expediente contiene información sensible o confidencial (true/false).",
