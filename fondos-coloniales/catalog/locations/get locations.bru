@@ -1,0 +1,20 @@
+meta {
+  name: get locations
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/locations
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 
+  ~per_page: 
+  ~is_active: 
+  ~user_id: 
+  ~name: 
+  ~query: 
+}
