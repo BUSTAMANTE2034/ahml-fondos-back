@@ -1,8 +1,8 @@
-"""create loan table
+"""create schema loan
 
-Revision ID: df975e24d1f2
-Revises: c0d204086fe4
-Create Date: 2025-11-05 10:40:12.270010
+Revision ID: 38a9c5ec49bf
+Revises: b1bc4076937c
+Create Date: 2025-11-05 14:27:11.528538
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'df975e24d1f2'
-down_revision = 'c0d204086fe4'
+revision = '38a9c5ec49bf'
+down_revision = 'b1bc4076937c'
 branch_labels = None
 depends_on = None
 
@@ -24,10 +24,10 @@ def upgrade():
     sa.Column('issued_by_user_id', sa.Integer(), nullable=False),
     sa.Column('loaded_by_user_id', sa.Integer(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('loaded_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('returned_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('loaded_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('returned_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['issued_by_user_id'], ['user.id'], ),
     sa.ForeignKeyConstraint(['loaded_by_user_id'], ['user.id'], ),

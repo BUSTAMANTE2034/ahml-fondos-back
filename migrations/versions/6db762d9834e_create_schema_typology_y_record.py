@@ -1,8 +1,8 @@
-"""create record_file_typology table
+"""create schema typology y record
 
-Revision ID: 0441a4404f2f
-Revises: b55ccadb12af
-Create Date: 2025-11-05 10:38:22.723401
+Revision ID: 6db762d9834e
+Revises: d7cb220ce129
+Create Date: 2025-11-05 14:26:39.724988
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0441a4404f2f'
-down_revision = 'b55ccadb12af'
+revision = '6db762d9834e'
+down_revision = 'd7cb220ce129'
 branch_labels = None
 depends_on = None
 
@@ -22,8 +22,8 @@ def upgrade():
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('record_file_id', sa.Integer(), nullable=False),
     sa.Column('typology_id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['record_file_id'], ['record_file.id'], ),
     sa.ForeignKeyConstraint(['typology_id'], ['typology.id'], ),

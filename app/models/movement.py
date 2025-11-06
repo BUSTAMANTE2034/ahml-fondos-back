@@ -5,7 +5,6 @@ Stores the historical movements of a record file (expediente) between archive st
 (e.g. archive, review, preservation, restoration), including who did it and when.
 """
 
-from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -49,20 +48,20 @@ class MovementHistory(db.Model):
 
     # when the movement actually happened
     moved_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)

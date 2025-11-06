@@ -112,3 +112,28 @@ class SignInResponseSchema(Schema):
     # antes: verification_required = fields.Bool(default=False)
     # ahora:
     verification_required = fields.Bool(dump_default=False)
+
+class ChangePasswordSchema(Schema):
+    current_password = fields.Str(
+        required=True,
+        error_messages={
+            "required": "La contraseña actual es obligatoria.",
+        },
+    )
+    new_password = fields.Str(
+        required=True,
+        validate=validate.Length(min=8, max=100),
+        error_messages={
+            "required": "La nueva contraseña es obligatoria.",
+            "invalid": "La nueva contraseña no es válida.",
+        },
+    )
+    new_password_confirmation = fields.Str(
+        required=True,
+        error_messages={
+            "required": "La confirmación de la nueva contraseña es obligatoria.",
+        },
+    )
+class RecoverPasswordSchema(Schema):
+    user_id = fields.Int(required=True, error_messages={"required": "El usuario es obligatorio."})
+

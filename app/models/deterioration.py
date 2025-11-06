@@ -5,7 +5,6 @@ Defines the catalog of deterioration records/types that can be associated
 to documentary records (expedientes) to describe their physical condition.
 """
 
-from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -37,14 +36,14 @@ class Deterioration(db.Model):
     description = db.Column(db.Text, nullable=True)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)

@@ -1,8 +1,8 @@
-"""create deterioration table
+"""create schema deterioration
 
-Revision ID: fb967a079c49
-Revises: 99b00ac09195
-Create Date: 2025-11-05 10:34:41.673301
+Revision ID: acd5789df685
+Revises: 9d9dd6291f8c
+Create Date: 2025-11-05 14:25:32.919214
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'fb967a079c49'
-down_revision = '99b00ac09195'
+revision = 'acd5789df685'
+down_revision = '9d9dd6291f8c'
 branch_labels = None
 depends_on = None
 
@@ -23,8 +23,8 @@ def upgrade():
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')

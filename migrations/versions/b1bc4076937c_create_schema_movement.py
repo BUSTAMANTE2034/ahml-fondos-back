@@ -1,8 +1,8 @@
-"""create record_file_typology table
+"""create schema movement
 
-Revision ID: c0d204086fe4
-Revises: 0441a4404f2f
-Create Date: 2025-11-05 10:39:16.340017
+Revision ID: b1bc4076937c
+Revises: 6db762d9834e
+Create Date: 2025-11-05 14:26:58.516432
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c0d204086fe4'
-down_revision = '0441a4404f2f'
+revision = 'b1bc4076937c'
+down_revision = '6db762d9834e'
 branch_labels = None
 depends_on = None
 
@@ -25,9 +25,9 @@ def upgrade():
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('origin_status', sa.String(length=50), nullable=True),
     sa.Column('destination_status', sa.String(length=50), nullable=True),
-    sa.Column('moved_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('moved_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['moved_by_user_id'], ['user.id'], ),
     sa.ForeignKeyConstraint(['record_file_id'], ['record_file.id'], ),

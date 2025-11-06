@@ -1,0 +1,18 @@
+meta {
+  name: get users copys
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/users/3
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "password": "Leon2025$",
+    "password_confirmation": "Leon2025$"
+  }
+}

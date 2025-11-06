@@ -1,0 +1,21 @@
+meta {
+  name: get users copy
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BACKEND_URL}}/users
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "employee_id": "000004",
+    "first_name": "Test user4",
+    "last_name": "last test",
+    "email": "testuserhaml4@yopmail.com",
+    "role": "archivist"
+  }
+}

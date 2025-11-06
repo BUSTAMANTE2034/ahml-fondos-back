@@ -1,8 +1,8 @@
-"""create record_file table
+"""create schema record file
 
-Revision ID: b55ccadb12af
-Revises: 3fbef5d719ec
-Create Date: 2025-11-05 10:37:51.688017
+Revision ID: d7cb220ce129
+Revises: f717507e2999
+Create Date: 2025-11-05 14:26:21.250122
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'b55ccadb12af'
-down_revision = '3fbef5d719ec'
+revision = 'd7cb220ce129'
+down_revision = 'f717507e2999'
 branch_labels = None
 depends_on = None
 
@@ -23,7 +23,6 @@ def upgrade():
     sa.Column('reference_code', sa.String(length=255), nullable=False),
     sa.Column('file_number', sa.String(length=50), nullable=True),
     sa.Column('subject', sa.String(length=255), nullable=False),
-    sa.Column('typologies', sa.JSON(), nullable=True),
     sa.Column('sensitive_data', sa.Boolean(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('comments', sa.Text(), nullable=True),
@@ -35,8 +34,8 @@ def upgrade():
     sa.Column('box_number', sa.String(length=50), nullable=True),
     sa.Column('page_count', sa.Integer(), nullable=True),
     sa.Column('file_date', sa.Date(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.Column('last_preservation_date', sa.Date(), nullable=True),
     sa.Column('last_fund_date', sa.Date(), nullable=True),

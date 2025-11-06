@@ -5,7 +5,6 @@ Represents a loan (checkout) of a record file (expediente) to a user/area.
 Stores who issued it, who has it, when it was loaned and when it was returned.
 """
 
-from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -53,31 +52,41 @@ class Loan(db.Model):
 
     # cuándo salió
     loaded_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
 
     # cuándo regresó (null mientras esté prestado)
-    returned_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    returned_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)
 
     # relaciones
     record_file = db.relationship("RecordFile", backref="loans", lazy=True)
-    issued_by_user = db.relationship("User", foreign_keys=[issued_by_user_id], backref="issued_loans", lazy=True)
-    loaded_by_user = db.relationship("User", foreign_keys=[loaded_by_user_id], backref="received_loans", lazy=True)
+    issued_by_user = db.relationship(
+        "User",
+        foreign_keys=[issued_by_user_id],
+        backref="issued_loans",
+        lazy=True,
+    )
+    loaded_by_user = db.relationship(
+        "User",
+        foreign_keys=[loaded_by_user_id],
+        backref="received_loans",
+        lazy=True,
+    )
 
     def __repr__(self):
         return f"<Loan {self.id}: record_file={self.record_file_id}>"

@@ -5,7 +5,6 @@ Defines documentary typologies that can be associated to record files (expedient
 Stores name, description, creator user and audit timestamps.
 """
 
-from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -37,26 +36,24 @@ class Typology(db.Model):
     description = db.Column(db.Text, nullable=True)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)
 
-    # relations
     user = db.relationship("User", backref="typologies", lazy=True)
 
     def __repr__(self):
         return f"<Typology {self.id}: {self.name}>"
 
     def to_json(self):
-        """Serialize the typology to a JSON-friendly dict."""
         return {
             "id": self.id,
             "user_id": self.user_id,

@@ -62,14 +62,14 @@ class Series(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)

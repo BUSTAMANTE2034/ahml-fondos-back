@@ -5,7 +5,6 @@ Defines the physical locations where record files (expedientes) can be stored.
 Includes basic identification, audit timestamps and the user who created/updated it.
 """
 
-from datetime import datetime, timezone
 from app.extensions import db
 
 
@@ -28,14 +27,14 @@ class Location(db.Model):
     name = db.Column(db.String(255), nullable=False)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)

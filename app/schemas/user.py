@@ -46,28 +46,34 @@ class UserBaseSchema(Schema):
 
 
 # Create Schema
-class UserCreateSchema(UserBaseSchema):
-    """Schema for user creation requests."""
-
-    password = fields.Str(
+class UserCreateSchema(Schema):
+    employee_id = fields.Str(
         required=True,
-        validate=validate.Length(min=8, max=100),
+        validate=validate.Length(min=1, max=20),
         error_messages={
-            "required": "La contraseña es obligatoria.",
-            "validator_failed": "La contraseña debe tener entre 8 y 100 caracteres.",
+            "required": "El número de empleado es obligatorio.",
         },
     )
-    password_confirmation = fields.Str(
+    first_name = fields.Str(
         required=True,
-        error_messages={"required": "La confirmación de contraseña es obligatoria."},
+        validate=validate.Length(min=1, max=100),
+        error_messages={
+            "required": "El nombre es obligatorio.",
+        },
     )
+    last_name = fields.Str(required=False, validate=validate.Length(max=100))
+    email = fields.Email(
+        required=True,
+        error_messages={
+            "required": "El correo electrónico es obligatorio.",
+            "invalid": "El formato del correo electrónico no es válido.",
+        },
+    )
+    # ya NO pedimos password aquí
     role = fields.Str(
         required=False,
         validate=validate.OneOf(["admin", "manager", "archivist", "visitor"]),
         load_default="visitor",
-        error_messages={
-            "validator_failed": "El rol debe ser uno de: admin, manager, archivist, visitor.",
-        },
     )
     first_login = fields.Bool(load_default=True)
 

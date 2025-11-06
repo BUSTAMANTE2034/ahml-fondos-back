@@ -12,6 +12,12 @@ from app.models.user import User
 from app.config import Config
 from typing import Optional
 
+import string
+import random
+
+def generate_temp_password(length: int = 10) -> str:
+    chars = string.ascii_letters + string.digits
+    return "".join(random.choice(chars) for _ in range(length))
 
 def role_required(*allowed_roles):
     """Decorator to restrict access to users with one of the specified roles.

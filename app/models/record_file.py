@@ -6,7 +6,7 @@ Includes archival references (fund, section, series), physical location,
 availability status, preservation dates and audit timestamps.
 """
 
-from datetime import datetime, timezone
+from datetime import date
 from app.extensions import db
 
 
@@ -52,7 +52,7 @@ class RecordFile(db.Model):
     subject = db.Column(db.String(255), nullable=False)
 
     # typologies as JSON array of IDs
-    #typologies = db.Column(db.JSON, nullable=True, default=list)
+    # typologies = db.Column(db.JSON, nullable=True, default=list)
 
     sensitive_data = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -99,16 +99,16 @@ class RecordFile(db.Model):
     # documentary date
     file_date = db.Column(db.Date, nullable=True)
 
-    # audit
+    # audit (usar hora del servidor MySQL)
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
         nullable=False,
     )
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)

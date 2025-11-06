@@ -1,8 +1,8 @@
-"""create catalog_key table
+"""create schema
 
-Revision ID: 6277cf62758e
+Revision ID: a425ffdeacae
 Revises: 
-Create Date: 2025-11-05 10:30:26.756998
+Create Date: 2025-11-05 14:23:56.492243
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '6277cf62758e'
+revision = 'a425ffdeacae'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -26,8 +26,8 @@ def upgrade():
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id'),

@@ -1,0 +1,19 @@
+meta {
+  name: get users
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/users
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 2
+  ~per_page: 40
+  ~role: manager
+  ~is_active: true
+  ~query: 000
+}

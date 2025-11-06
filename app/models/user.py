@@ -40,11 +40,16 @@ class User(db.Model, UserMixin):
     is_active = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(50), nullable=False, default="visitor")
     first_login = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(
+        db.DateTime,
+        server_default=db.func.now(),
+        nullable=False,
+    )
     updated_at = db.Column(
         db.DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
+        nullable=False,
     )
     deleted_at = db.Column(db.DateTime, nullable=True)
     last_login = db.Column(db.DateTime, nullable=True)

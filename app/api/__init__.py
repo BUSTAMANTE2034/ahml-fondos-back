@@ -11,6 +11,7 @@ from flask_restx import Api
 
 from app.api.endpoints.health import api as health
 from app.api.endpoints.auth import api as auth
+from app.api.endpoints.users import api as users
 
 
 # Crear instancia principal de API y Blueprint
@@ -27,6 +28,7 @@ api = Api(
 
 api.add_namespace(health)
 api.add_namespace(auth)
+api.add_namespace(users)
 
 
 # Función para registrar el blueprint en la aplicación Flask

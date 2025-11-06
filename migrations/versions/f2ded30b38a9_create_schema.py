@@ -1,8 +1,8 @@
-"""create fund table
+"""create schema
 
-Revision ID: 5c365b4200c8
-Revises: 6277cf62758e
-Create Date: 2025-11-05 10:31:36.144462
+Revision ID: f2ded30b38a9
+Revises: a425ffdeacae
+Create Date: 2025-11-05 14:24:20.158917
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '5c365b4200c8'
-down_revision = '6277cf62758e'
+revision = 'f2ded30b38a9'
+down_revision = 'a425ffdeacae'
 branch_labels = None
 depends_on = None
 
@@ -27,8 +27,8 @@ def upgrade():
     sa.Column('start_date', sa.Date(), nullable=True),
     sa.Column('end_date', sa.Date(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['catalog_key_id'], ['catalog_key.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
