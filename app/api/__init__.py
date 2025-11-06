@@ -15,6 +15,7 @@ from app.api.endpoints.users import api as users
 from app.api.endpoints.catalog_keys import api as catalog_keys
 from app.api.endpoints.funds import api as funds
 from app.api.endpoints.sections import api as sections
+from app.api.endpoints.series import api as series
 
 
 # Crear instancia principal de API y Blueprint
@@ -35,6 +36,7 @@ api.add_namespace(users)
 api.add_namespace(catalog_keys)
 api.add_namespace(funds)
 api.add_namespace(sections)
+api.add_namespace(series)
 
 
 # Función para registrar el blueprint en la aplicación Flask
