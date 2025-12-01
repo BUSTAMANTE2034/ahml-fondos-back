@@ -29,14 +29,14 @@ class TypologyList(Resource):
 
         Descripción:
             Obtiene una lista paginada de tipologías documentales no eliminadas lógicamente,
-            permitiendo filtrar por nombre, por usuario que la creó/modificó y hacer una
-            búsqueda libre sobre nombre y descripción.
+            permitiendo filtrar por nombre, usuario, búsqueda libre y estado (is_active).
 
         Parámetros de consulta:
             - page (int, opcional): Número de página (por defecto 1).
             - per_page (int, opcional): Tamaño de página (por defecto 20).
             - name (str, opcional): Filtra por nombre parcial de la tipología.
-            - user_id (int, opcional): Filtra por el usuario que creó/modificó la tipología.
+            - user_id (int, opcional): Filtra por usuario que creó/modificó.
+            - is_active (bool, opcional): Filtra por estado.
             - query (str, opcional): Búsqueda libre sobre name y description.
 
         Respuestas:
@@ -44,6 +44,7 @@ class TypologyList(Resource):
         """
         name_param = request.args.get("name", "").strip()
         user_id_param = request.args.get("user_id")
+        is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
 
         try:
@@ -55,16 +56,21 @@ class TypologyList(Resource):
 
         query = Typology.query.filter(Typology.deleted_at.is_(None))
 
-        # filtrar por nombre
+        # estado
+        if is_active_param is not None:
+            is_active_bool = is_active_param.lower() in ("true", "1", "yes")
+            query = query.filter(Typology.is_active.is_(is_active_bool))
+
+        # nombre
         if name_param:
             like_name = f"%{name_param}%"
             query = query.filter(Typology.name.ilike(like_name))
 
-        # filtrar por usuario
+        # usuario
         if user_id_param:
             try:
-                user_id_int = int(user_id_param)
-                query = query.filter(Typology.user_id == user_id_int)
+                uid = int(user_id_param)
+                query = query.filter(Typology.user_id == uid)
             except ValueError:
                 pass
 
@@ -78,8 +84,12 @@ class TypologyList(Resource):
                 )
             )
 
-        # orden por actualización
-        query = query.order_by(Typology.updated_at.desc())
+        # orden igual que SECTIONS → estado primero, luego updated_at DESC
+        from sqlalchemy import desc
+        query = query.order_by(
+            desc(Typology.is_active),
+            desc(Typology.updated_at)
+        )
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -93,6 +103,7 @@ class TypologyList(Resource):
                 {
                     "id": item.user.id,
                     "first_name": item.user.first_name,
+                    "employee_id": item.user.employee_id,
                     "last_name": item.user.last_name,
                     "email": item.user.email,
                 }
@@ -122,12 +133,12 @@ class TypologyList(Resource):
         Represents a documentary typology in the AHML Fondos system.
 
         Descripción:
-            Crea una nueva tipología documental y la asocia al usuario autenticado
-            como creador/modificador.
+            Crea una nueva tipología documental y la asocia al usuario autenticado.
 
         Cuerpo (JSON):
             - name (str, requerido): Nombre de la tipología.
             - description (str, opcional): Descripción detallada.
+            - is_active (bool, opcional): Estado inicial (por defecto True).
 
         Respuestas:
             201: Tipología creada correctamente.
@@ -143,6 +154,7 @@ class TypologyList(Resource):
         typology = Typology(
             name=data["name"],
             description=data.get("description"),
+            is_active=data.get("is_active", True),
             user_id=current_user.id if current_user.is_authenticated else None,
         )
 
@@ -158,8 +170,7 @@ class TypologyList(Resource):
                 "last_name": typology.user.last_name,
                 "email": typology.user.email,
             }
-            if typology.user
-            else None
+            if typology.user else None
         )
 
         return {
@@ -170,22 +181,12 @@ class TypologyList(Resource):
 
 @api.route("/<int:typology_id>")
 class TypologyDetail(Resource):
+
     @login_required
     @role_required("admin", "manager")
     def get(self, typology_id: int):
         """
-        Represents a documentary typology in the AHML Fondos system.
-
-        Descripción:
-            Obtiene una tipología documental por su identificador, incluyendo los datos
-            del usuario que la creó/modificó.
-
-        Parámetros de ruta:
-            - typology_id (int): Identificador de la tipología.
-
-        Respuestas:
-            200: Tipología obtenida correctamente.
-            404: Tipología no encontrada o eliminada lógicamente.
+        Obtiene una tipología documental por ID.
         """
         typology = Typology.query.get(typology_id)
         if not typology or typology.deleted_at is not None:
@@ -200,8 +201,7 @@ class TypologyDetail(Resource):
                 "last_name": typology.user.last_name,
                 "email": typology.user.email,
             }
-            if typology.user
-            else None
+            if typology.user else None
         )
 
         return {
@@ -213,23 +213,8 @@ class TypologyDetail(Resource):
     @role_required("admin", "manager")
     def put(self, typology_id: int):
         """
-        Represents a documentary typology in the AHML Fondos system.
-
-        Descripción:
-            Actualiza parcialmente una tipología documental existente. Permite modificar
-            el nombre y la descripción. La modificación se registra con el usuario autenticado.
-
-        Parámetros de ruta:
-            - typology_id (int): Identificador de la tipología a actualizar.
-
-        Cuerpo (JSON):
-            - name (str, opcional): Nuevo nombre de la tipología.
-            - description (str, opcional): Nueva descripción.
-
-        Respuestas:
-            200: Tipología actualizada correctamente.
-            400: Error de validación.
-            404: Tipología no encontrada.
+        Actualiza parcialmente una tipología documental.
+        Permite modificar: name, description, is_active.
         """
         schema = TypologyUpdateSchema()
         try:
@@ -247,8 +232,10 @@ class TypologyDetail(Resource):
             typology.name = data["name"]
         if "description" in data:
             typology.description = data["description"]
+        if "is_active" in data:
+            typology.is_active = data["is_active"]
 
-        # registrar quién modificó
+        # quién modificó
         typology.user_id = current_user.id if current_user.is_authenticated else typology.user_id
 
         try:
@@ -270,8 +257,7 @@ class TypologyDetail(Resource):
                 "last_name": typology.user.last_name,
                 "email": typology.user.email,
             }
-            if typology.user
-            else None
+            if typology.user else None
         )
 
         return {
@@ -283,24 +269,16 @@ class TypologyDetail(Resource):
     @role_required("admin", "manager")
     def delete(self, typology_id: int):
         """
-        Represents a documentary typology in the AHML Fondos system.
-
-        Descripción:
-            Realiza un borrado lógico de la tipología documental, registrando la fecha
-            de eliminación. No elimina físicamente el registro.
-
-        Parámetros de ruta:
-            - typology_id (int): Identificador de la tipología a eliminar.
-
-        Respuestas:
-            200: Tipología eliminada lógicamente.
-            404: Tipología no encontrada.
+        Realiza el borrado lógico:
+            - deleted_at = NOW()
+            - is_active = False
         """
         typology = Typology.query.get(typology_id)
         if not typology or typology.deleted_at is not None:
             return {"message": "Tipología no encontrada."}, 404
 
         typology.deleted_at = db.func.now()
+        typology.is_active = False
         typology.user_id = current_user.id if current_user.is_authenticated else typology.user_id
 
         db.session.commit()

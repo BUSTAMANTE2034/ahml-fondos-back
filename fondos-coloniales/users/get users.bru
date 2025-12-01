@@ -5,15 +5,15 @@ meta {
 }
 
 get {
-  url: {{BACKEND_URL}}/users
+  url: {{BACKEND_URL}}users?role=archivist&page=1&per_page=20
   body: none
   auth: inherit
 }
 
 params:query {
-  ~page: 2
-  ~per_page: 40
-  ~role: manager
-  ~is_active: true
+  role: archivist
+  page: 1
+  per_page: 20
+  ~is_active: null
   ~query: 000
 }

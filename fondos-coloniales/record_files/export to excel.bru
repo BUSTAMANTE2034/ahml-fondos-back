@@ -1,17 +1,16 @@
 meta {
-  name: get record files
+  name: export to excel
   type: http
-  seq: 1
+  seq: 8
 }
 
 get {
-  url: {{BACKEND_URL}}/record-files?order_by=box_number_desc
+  url: {{BACKEND_URL}}/record-files/export-excel?
   body: none
   auth: inherit
 }
 
 params:query {
-  order_by: box_number_desc
   ~fund_name: col
   ~availability_status: on_loan
   ~file_number: 453
@@ -33,5 +32,6 @@ params:query {
   ~updated_at_desc: 
   ~file_date_asc: 
   ~file_date_desc: 
+  ~deterioration_updated_at_asc: 
   ~deterioration_updated_at_desc: 
 }

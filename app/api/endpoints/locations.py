@@ -29,21 +29,19 @@ class LocationList(Resource):
 
         Descripción:
             Obtiene una lista paginada de ubicaciones no eliminadas lógicamente,
-            permitiendo filtrar por nombre, por usuario que la creó/modificó
-            y realizar una búsqueda libre.
+            permitiendo filtrar por nombre, usuario, estado y búsqueda libre.
 
         Parámetros de consulta:
-            - page (int, opcional): Número de página (por defecto 1).
-            - per_page (int, opcional): Tamaño de página (por defecto 20).
-            - name (str, opcional): Filtra por nombre parcial de la ubicación.
-            - user_id (int, opcional): Filtra por el usuario que creó/modificó la ubicación.
-            - query (str, opcional): Búsqueda libre aplicada sobre name.
-
-        Respuestas:
-            200: Estructura con lista de ubicaciones y datos de paginación.
+            - page (int, opcional)
+            - per_page (int, opcional)
+            - name (str, opcional)
+            - user_id (int, opcional)
+            - is_active (bool, opcional)
+            - query (str, opcional)
         """
         name_param = request.args.get("name", "").strip()
         user_id_param = request.args.get("user_id")
+        is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
 
         try:
@@ -55,6 +53,11 @@ class LocationList(Resource):
 
         query = Location.query.filter(Location.deleted_at.is_(None))
 
+        # estado
+        if is_active_param is not None:
+            is_active_bool = is_active_param.lower() in ("true", "1", "yes")
+            query = query.filter(Location.is_active.is_(is_active_bool))
+
         # filtrar por nombre
         if name_param:
             like_name = f"%{name_param}%"
@@ -63,8 +66,8 @@ class LocationList(Resource):
         # filtrar por usuario
         if user_id_param:
             try:
-                user_id_int = int(user_id_param)
-                query = query.filter(Location.user_id == user_id_int)
+                uid = int(user_id_param)
+                query = query.filter(Location.user_id == uid)
             except ValueError:
                 pass
 
@@ -77,8 +80,12 @@ class LocationList(Resource):
                 )
             )
 
-        # orden por actualización más reciente
-        query = query.order_by(Location.updated_at.desc())
+        # orden como el resto de módulos
+        from sqlalchemy import desc
+        query = query.order_by(
+            desc(Location.is_active),
+            desc(Location.updated_at)
+        )
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -86,17 +93,17 @@ class LocationList(Resource):
         schema = LocationResponseSchema(many=True)
         data = schema.dump(items)
 
-        # anidar user
+        # anidar usuario con employee_id
         for i, item in enumerate(items):
             data[i]["user"] = (
                 {
                     "id": item.user.id,
                     "first_name": item.user.first_name,
                     "last_name": item.user.last_name,
+                    "employee_id": item.user.employee_id,
                     "email": item.user.email,
                 }
-                if item.user
-                else None
+                if item.user else None
             )
 
         return {
@@ -118,18 +125,11 @@ class LocationList(Resource):
     @role_required("admin", "manager")
     def post(self):
         """
-        Represents a physical/archive location in the AHML Fondos system.
-
-        Descripción:
-            Crea una nueva ubicación física y la asocia al usuario autenticado
-            como creador/modificador.
+        Crea una nueva ubicación física.
 
         Cuerpo (JSON):
-            - name (str, requerido): Nombre de la ubicación (área, edificio, sala, etc.).
-
-        Respuestas:
-            201: Ubicación creada correctamente.
-            400: Error de validación.
+            - name (str, requerido)
+            - is_active (bool, opcional, default True)
         """
         schema = LocationCreateSchema()
         try:
@@ -140,6 +140,7 @@ class LocationList(Resource):
 
         location = Location(
             name=data["name"],
+            is_active=data.get("is_active", True),
             user_id=current_user.id if current_user.is_authenticated else None,
         )
 
@@ -153,10 +154,10 @@ class LocationList(Resource):
                 "id": location.user.id,
                 "first_name": location.user.first_name,
                 "last_name": location.user.last_name,
+                "employee_id": location.user.employee_id,
                 "email": location.user.email,
             }
-            if location.user
-            else None
+            if location.user else None
         )
 
         return {
@@ -171,18 +172,7 @@ class LocationDetail(Resource):
     @role_required("admin", "manager")
     def get(self, location_id: int):
         """
-        Represents a physical/archive location in the AHML Fondos system.
-
-        Descripción:
-            Obtiene una ubicación física por su identificador, incluyendo
-            los datos del usuario que la creó/modificó.
-
-        Parámetros de ruta:
-            - location_id (int): Identificador de la ubicación.
-
-        Respuestas:
-            200: Ubicación obtenida correctamente.
-            404: Ubicación no encontrada o eliminada lógicamente.
+        Obtiene ubicación por ID.
         """
         location = Location.query.get(location_id)
         if not location or location.deleted_at is not None:
@@ -195,10 +185,10 @@ class LocationDetail(Resource):
                 "id": location.user.id,
                 "first_name": location.user.first_name,
                 "last_name": location.user.last_name,
+                "employee_id": location.user.employee_id,
                 "email": location.user.email,
             }
-            if location.user
-            else None
+            if location.user else None
         )
 
         return {
@@ -210,22 +200,8 @@ class LocationDetail(Resource):
     @role_required("admin", "manager")
     def put(self, location_id: int):
         """
-        Represents a physical/archive location in the AHML Fondos system.
-
-        Descripción:
-            Actualiza parcialmente una ubicación existente. Permite modificar
-            el nombre. La modificación se registra con el usuario autenticado.
-
-        Parámetros de ruta:
-            - location_id (int): Identificador de la ubicación a actualizar.
-
-        Cuerpo (JSON):
-            - name (str, opcional): Nuevo nombre de la ubicación.
-
-        Respuestas:
-            200: Ubicación actualizada correctamente.
-            400: Error de validación.
-            404: Ubicación no encontrada.
+        Actualiza parcialmente una ubicación.
+        Permite modificar: name, is_active.
         """
         schema = LocationUpdateSchema()
         try:
@@ -241,8 +217,9 @@ class LocationDetail(Resource):
 
         if "name" in data:
             location.name = data["name"]
+        if "is_active" in data:
+            location.is_active = data["is_active"]
 
-        # registrar quién modificó
         location.user_id = current_user.id if current_user.is_authenticated else location.user_id
 
         try:
@@ -262,10 +239,10 @@ class LocationDetail(Resource):
                 "id": location.user.id,
                 "first_name": location.user.first_name,
                 "last_name": location.user.last_name,
+                "employee_id": location.user.employee_id,
                 "email": location.user.email,
             }
-            if location.user
-            else None
+            if location.user else None
         )
 
         return {
@@ -277,24 +254,16 @@ class LocationDetail(Resource):
     @role_required("admin", "manager")
     def delete(self, location_id: int):
         """
-        Represents a physical/archive location in the AHML Fondos system.
-
-        Descripción:
-            Realiza un borrado lógico de la ubicación, marcándola con fecha de
-            eliminación. No elimina físicamente el registro.
-
-        Parámetros de ruta:
-            - location_id (int): Identificador de la ubicación a eliminar.
-
-        Respuestas:
-            200: Ubicación eliminada lógicamente.
-            404: Ubicación no encontrada.
+        Borrado lógico:
+            - deleted_at = NOW()
+            - is_active = False
         """
         location = Location.query.get(location_id)
         if not location or location.deleted_at is not None:
             return {"message": "Ubicación no encontrada."}, 404
 
         location.deleted_at = db.func.now()
+        location.is_active = False
         location.user_id = current_user.id if current_user.is_authenticated else location.user_id
 
         db.session.commit()

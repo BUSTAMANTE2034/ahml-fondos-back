@@ -13,7 +13,7 @@ class DeteriorationBaseSchema(Schema):
 
     id = fields.Int(dump_only=True)
     user_id = fields.Int(dump_only=True)
-
+    is_active = fields.Bool(dump_only=True)
     name = fields.Str(
         required=True,
         validate=validate.Length(min=1, max=255),
@@ -39,6 +39,7 @@ class DeteriorationUpdateSchema(Schema):
     id = fields.Int(required=True, error_messages={"required": "El ID del deterioro es obligatorio."})
     name = fields.Str(validate=validate.Length(min=1, max=255))
     description = fields.Str()
+    is_active = fields.Bool()
     updated_at = fields.DateTime(dump_only=True)
 
 

@@ -5,9 +5,8 @@ Validan creación, actualización y respuesta de los movimientos.
 
 from marshmallow import Schema, fields, validate
 
-
-# valores que manejas en el modelo
-ALLOWED_STATUSES = ["archive", "review", "preservation", "restoration"]
+# NUEVO: valores que maneja el RecordFile
+ALLOWED_STATUSES = ["available", "under_review", "unavailable"]
 
 
 class MovementHistoryBaseSchema(Schema):
@@ -21,15 +20,12 @@ class MovementHistoryBaseSchema(Schema):
             "required": "El ID del expediente es obligatorio.",
         },
     )
-    moved_by_user_id = fields.Int(
-        required=True,
-        error_messages={
-            "required": "El ID del usuario que realizó el movimiento es obligatorio.",
-        },
-    )
+
+    moved_by_user_id = fields.Int(dump_only=True)
 
     description = fields.Str(required=False)
 
+    # YA NO SE USA en POST, pero aceptamos en PUT opcional
     origin_status = fields.Str(
         required=False,
         validate=validate.OneOf(ALLOWED_STATUSES),
@@ -37,6 +33,7 @@ class MovementHistoryBaseSchema(Schema):
             "validator_failed": "El estado de origen no es válido.",
         },
     )
+
     destination_status = fields.Str(
         required=False,
         validate=validate.OneOf(ALLOWED_STATUSES),
@@ -45,16 +42,18 @@ class MovementHistoryBaseSchema(Schema):
         },
     )
 
-    moved_at = fields.DateTime(dump_only=True)
+    # Ahora permitimos mandar moved_at en POST y PUT
+    moved_at = fields.DateTime(required=False)
+
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
     deleted_at = fields.DateTime(dump_only=True)
 
 
 class MovementHistoryCreateSchema(MovementHistoryBaseSchema):
-    """Esquema para crear un registro de movimiento."""
+    """Esquema para crear un movimiento."""
 
-    # aquí sí podemos exigir destination_status
+    # destination_status obligatorio
     destination_status = fields.Str(
         required=True,
         validate=validate.OneOf(ALLOWED_STATUSES),
@@ -63,30 +62,30 @@ class MovementHistoryCreateSchema(MovementHistoryBaseSchema):
             "validator_failed": "El estado de destino no es válido.",
         },
     )
-    # origin_status puede venir en null si el expediente estaba “sin estado”
+
+    # origin_status se ignorará, pero lo permitimos en el cuerpo si llega
+    origin_status = fields.Str(required=False)
 
 
 class MovementHistoryUpdateSchema(Schema):
-    """Esquema para actualizar un movimiento (normalmente comentarios o soft delete)."""
+    """Esquema para actualizar un movimiento."""
 
-    id = fields.Int(
-        required=True,
-        error_messages={"required": "El ID del movimiento es obligatorio."},
-    )
+    # YA NO pedimos el ID en el body
     description = fields.Str()
+
     origin_status = fields.Str(
         validate=validate.OneOf(ALLOWED_STATUSES),
-        error_messages={
-            "validator_failed": "El estado de origen no es válido.",
-        },
+        error_messages={"validator_failed": "El estado de origen no es válido."},
     )
+
     destination_status = fields.Str(
         validate=validate.OneOf(ALLOWED_STATUSES),
-        error_messages={
-            "validator_failed": "El estado de destino no es válido.",
-        },
+        error_messages={"validator_failed": "El estado de destino no es válido."},
     )
-    deleted_at = fields.DateTime()
+
+    moved_at = fields.DateTime(required=False)
+
+    deleted_at = fields.DateTime(required=False)
     updated_at = fields.DateTime(dump_only=True)
 
 

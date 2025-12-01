@@ -64,12 +64,14 @@ def create_app() -> Flask:
     ]
 
     CORS(
-        app,
-        origins=allowed_origins,
-        supports_credentials=True,  # allow cookies and authentication headers
-        allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    )
+    app,
+    origins=allowed_origins,
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    expose_headers=["Content-Disposition"],  # ←  ESTE ES EL CLAVE
+)
+
 
     # Initialize CLI commands and migrations
     init_cli(app)

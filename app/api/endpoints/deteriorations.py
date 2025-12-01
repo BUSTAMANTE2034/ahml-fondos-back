@@ -25,25 +25,12 @@ class DeteriorationList(Resource):
     @role_required("admin", "manager")
     def get(self):
         """
-        Represents a deterioration record/type in the AHML Fondos system.
-
-        Descripción:
-            Obtiene una lista paginada de tipos/registros de deterioro no eliminados lógicamente,
-            permitiendo filtrar por nombre, por usuario que lo creó/modificó y hacer una búsqueda
-            libre sobre nombre y descripción.
-
-        Parámetros de consulta:
-            - page (int, opcional): Número de página (por defecto 1).
-            - per_page (int, opcional): Tamaño de página (por defecto 20).
-            - name (str, opcional): Filtra por nombre parcial del deterioro.
-            - user_id (int, opcional): Filtra por el usuario que creó/modificó el deterioro.
-            - query (str, opcional): Búsqueda libre sobre name y description.
-
-        Respuestas:
-            200: Estructura con lista de deterioros y datos de paginación.
+        Obtiene lista paginada de deterioros no eliminados lógicamente,
+        con filtros por nombre, usuario, estado y búsqueda libre.
         """
         name_param = request.args.get("name", "").strip()
         user_id_param = request.args.get("user_id")
+        is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
 
         try:
@@ -55,16 +42,21 @@ class DeteriorationList(Resource):
 
         query = Deterioration.query.filter(Deterioration.deleted_at.is_(None))
 
-        # filtrar por nombre
+        # estado
+        if is_active_param is not None:
+            is_active_bool = is_active_param.lower() in ("true", "1", "yes")
+            query = query.filter(Deterioration.is_active.is_(is_active_bool))
+
+        # por nombre
         if name_param:
             like_name = f"%{name_param}%"
             query = query.filter(Deterioration.name.ilike(like_name))
 
-        # filtrar por usuario
+        # por usuario
         if user_id_param:
             try:
-                user_id_int = int(user_id_param)
-                query = query.filter(Deterioration.user_id == user_id_int)
+                uid = int(user_id_param)
+                query = query.filter(Deterioration.user_id == uid)
             except ValueError:
                 pass
 
@@ -78,8 +70,12 @@ class DeteriorationList(Resource):
                 )
             )
 
-        # orden por actualización
-        query = query.order_by(Deterioration.updated_at.desc())
+        # orden uniformado: activos primero, luego updated_at DESC
+        from sqlalchemy import desc
+        query = query.order_by(
+            desc(Deterioration.is_active),
+            desc(Deterioration.updated_at)
+        )
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -87,17 +83,17 @@ class DeteriorationList(Resource):
         schema = DeteriorationResponseSchema(many=True)
         data = schema.dump(items)
 
-        # anidar user
+        # anidar user con employee_id
         for i, item in enumerate(items):
             data[i]["user"] = (
                 {
                     "id": item.user.id,
                     "first_name": item.user.first_name,
                     "last_name": item.user.last_name,
+                    "employee_id": item.user.employee_id,
                     "email": item.user.email,
                 }
-                if item.user
-                else None
+                if item.user else None
             )
 
         return {
@@ -119,19 +115,7 @@ class DeteriorationList(Resource):
     @role_required("admin", "manager")
     def post(self):
         """
-        Represents a deterioration record/type in the AHML Fondos system.
-
-        Descripción:
-            Crea un nuevo tipo/registro de deterioro y lo asocia al usuario autenticado
-            como creador/modificador.
-
-        Cuerpo (JSON):
-            - name (str, requerido): Nombre del deterioro (ej. "Humedad", "Rotura").
-            - description (str, opcional): Descripción más detallada.
-
-        Respuestas:
-            201: Deterioro creado correctamente.
-            400: Error de validación.
+        Crea un nuevo deterioro.
         """
         schema = DeteriorationCreateSchema()
         try:
@@ -143,6 +127,7 @@ class DeteriorationList(Resource):
         deterioration = Deterioration(
             name=data["name"],
             description=data.get("description"),
+            is_active=data.get("is_active", True),
             user_id=current_user.id if current_user.is_authenticated else None,
         )
 
@@ -156,10 +141,10 @@ class DeteriorationList(Resource):
                 "id": deterioration.user.id,
                 "first_name": deterioration.user.first_name,
                 "last_name": deterioration.user.last_name,
+                "employee_id": deterioration.user.employee_id,
                 "email": deterioration.user.email,
             }
-            if deterioration.user
-            else None
+            if deterioration.user else None
         )
 
         return {
@@ -170,22 +155,12 @@ class DeteriorationList(Resource):
 
 @api.route("/<int:deterioration_id>")
 class DeteriorationDetail(Resource):
+
     @login_required
     @role_required("admin", "manager")
     def get(self, deterioration_id: int):
         """
-        Represents a deterioration record/type in the AHML Fondos system.
-
-        Descripción:
-            Obtiene un registro de deterioro por su identificador, incluyendo
-            los datos del usuario que lo creó/modificó.
-
-        Parámetros de ruta:
-            - deterioration_id (int): Identificador del deterioro.
-
-        Respuestas:
-            200: Deterioro obtenido correctamente.
-            404: Deterioro no encontrado o eliminado lógicamente.
+        Obtiene deterioro por ID.
         """
         deterioration = Deterioration.query.get(deterioration_id)
         if not deterioration or deterioration.deleted_at is not None:
@@ -198,10 +173,10 @@ class DeteriorationDetail(Resource):
                 "id": deterioration.user.id,
                 "first_name": deterioration.user.first_name,
                 "last_name": deterioration.user.last_name,
+                "employee_id": deterioration.user.employee_id,
                 "email": deterioration.user.email,
             }
-            if deterioration.user
-            else None
+            if deterioration.user else None
         )
 
         return {
@@ -213,23 +188,8 @@ class DeteriorationDetail(Resource):
     @role_required("admin", "manager")
     def put(self, deterioration_id: int):
         """
-        Represents a deterioration record/type in the AHML Fondos system.
-
-        Descripción:
-            Actualiza parcialmente un registro de deterioro. Permite cambiar el nombre
-            y la descripción. La modificación se registra con el usuario autenticado.
-
-        Parámetros de ruta:
-            - deterioration_id (int): Identificador del deterioro a actualizar.
-
-        Cuerpo (JSON):
-            - name (str, opcional): Nuevo nombre.
-            - description (str, opcional): Nueva descripción.
-
-        Respuestas:
-            200: Deterioro actualizado correctamente.
-            400: Error de validación.
-            404: Deterioro no encontrado.
+        Actualiza parcialmente un deterioro.
+        Permite modificar: name, description, is_active.
         """
         schema = DeteriorationUpdateSchema()
         try:
@@ -247,8 +207,9 @@ class DeteriorationDetail(Resource):
             deterioration.name = data["name"]
         if "description" in data:
             deterioration.description = data["description"]
+        if "is_active" in data:
+            deterioration.is_active = data["is_active"]
 
-        # registrar quién modificó
         deterioration.user_id = current_user.id if current_user.is_authenticated else deterioration.user_id
 
         try:
@@ -268,10 +229,10 @@ class DeteriorationDetail(Resource):
                 "id": deterioration.user.id,
                 "first_name": deterioration.user.first_name,
                 "last_name": deterioration.user.last_name,
+                "employee_id": deterioration.user.employee_id,
                 "email": deterioration.user.email,
             }
-            if deterioration.user
-            else None
+            if deterioration.user else None
         )
 
         return {
@@ -283,24 +244,16 @@ class DeteriorationDetail(Resource):
     @role_required("admin", "manager")
     def delete(self, deterioration_id: int):
         """
-        Represents a deterioration record/type in the AHML Fondos system.
-
-        Descripción:
-            Realiza un borrado lógico del registro de deterioro, registrando
-            la fecha de eliminación. No elimina físicamente el registro.
-
-        Parámetros de ruta:
-            - deterioration_id (int): Identificador del deterioro a eliminar.
-
-        Respuestas:
-            200: Deterioro eliminado lógicamente.
-            404: Deterioro no encontrado.
+        Borrado lógico:
+            - deleted_at = NOW()
+            - is_active = False
         """
         deterioration = Deterioration.query.get(deterioration_id)
         if not deterioration or deterioration.deleted_at is not None:
             return {"message": "Deterioro no encontrado."}, 404
 
         deterioration.deleted_at = db.func.now()
+        deterioration.is_active = False
         deterioration.user_id = current_user.id if current_user.is_authenticated else deterioration.user_id
 
         db.session.commit()

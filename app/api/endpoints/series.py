@@ -23,13 +23,17 @@ api = Namespace("series", description="Operaciones de gestión de series documen
 
 
 def _parse_date(date_str: str):
-    """Intenta parsear una fecha 'YYYY-MM-DD'. Devuelve None si falla."""
+    """Acepta formatos YYYY-MM-DD y DD-MM-YYYY."""
     if not date_str:
         return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            pass
+
+    return None
 
 
 @api.route("")
@@ -37,30 +41,6 @@ class SeriesList(Resource):
     @login_required
     @role_required("admin", "manager")
     def get(self):
-        """
-        Represents a documentary series in the AHML Fondos system.
-
-        Descripción:
-            Obtiene una lista paginada de series documentales no eliminadas lógicamente,
-            permitiendo filtrar por estado, usuario creador/modificador, clave de catálogo,
-            nombre, acrónimo y rango de fechas de vigencia. También permite una búsqueda
-            libre por nombre y acrónimo.
-
-        Parámetros de consulta:
-            - page (int, opcional): Número de página (por defecto 1).
-            - per_page (int, opcional): Tamaño de página (por defecto 20).
-            - is_active (bool|str, opcional): Filtra por estado activo/inactivo.
-            - user_id (int, opcional): Filtra por el usuario que creó/modificó la serie.
-            - catalog_key_id (int, opcional): Filtra por la clave de catálogo asociada.
-            - name (str, opcional): Filtra por nombre parcial.
-            - acronym (str, opcional): Filtra por acrónimo parcial.
-            - start_date (date, opcional, YYYY-MM-DD): Series con start_date >= a este valor.
-            - end_date (date, opcional, YYYY-MM-DD): Series con end_date <= a este valor.
-            - query (str, opcional): Búsqueda libre sobre name y acronym.
-
-        Respuestas:
-            200: Lista paginada de series.
-        """
         is_active_param = request.args.get("is_active")
         user_id_param = request.args.get("user_id")
         catalog_key_id_param = request.args.get("catalog_key_id")
@@ -110,26 +90,53 @@ class SeriesList(Resource):
             like_acronym = f"%{acronym_param}%"
             query = query.filter(Series.acronym.ilike(like_acronym))
 
-        # fechas
+        # fechas — mismo comportamiento que FONDOS y SECCIONES
         start_date_filter = _parse_date(start_date_param)
         end_date_filter = _parse_date(end_date_param)
 
-        if start_date_filter:
-            query = query.filter(Series.start_date >= start_date_filter)
-        if end_date_filter:
-            query = query.filter(Series.end_date <= end_date_filter)
-
-        # búsqueda libre
-        if query_param:
-            like = f"%{query_param}%"
+        # SOLO start_date
+        if start_date_filter and not end_date_filter:
             query = query.filter(
                 or_(
-                    Series.name.ilike(like),
-                    Series.acronym.ilike(like),
+                    Series.start_date >= start_date_filter,
+                    Series.end_date >= start_date_filter,
                 )
             )
 
-        query = query.order_by(Series.updated_at.desc())
+        # SOLO end_date
+        elif end_date_filter and not start_date_filter:
+            query = query.filter(
+                or_(
+                    Series.start_date <= end_date_filter,
+                    Series.end_date <= end_date_filter,
+                )
+            )
+
+        # AMBOS → rangos que se intersecten
+        elif start_date_filter and end_date_filter:
+            query = query.filter(
+                Series.start_date <= end_date_filter,
+                Series.end_date >= start_date_filter,
+            )
+
+        # búsqueda libre con catalog_key
+        if query_param:
+            like = f"%{query_param}%"
+            query = query.join(CatalogKey, isouter=True).filter(
+                or_(
+                    Series.name.ilike(like),
+                    Series.acronym.ilike(like),
+                    CatalogKey.key.ilike(like),
+                    CatalogKey.name.ilike(like),
+                )
+            )
+
+        # orden
+        from sqlalchemy import desc
+        query = query.order_by(
+            desc(Series.is_active),
+            desc(Series.updated_at)
+        )
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -137,12 +144,13 @@ class SeriesList(Resource):
         schema = SeriesResponseSchema(many=True)
         data = schema.dump(items)
 
-        # anidar user y catalog_key en la respuesta
+        # anidar user y catalog_key
         for i, item in enumerate(items):
             data[i]["user"] = (
                 {
                     "id": item.user.id,
                     "first_name": item.user.first_name,
+                    "employee_id": item.user.employee_id,
                     "last_name": item.user.last_name,
                     "email": item.user.email,
                 }

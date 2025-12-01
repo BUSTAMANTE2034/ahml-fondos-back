@@ -34,6 +34,7 @@ class Typology(db.Model):
 
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=True)
 
     created_at = db.Column(
         db.DateTime,
@@ -59,6 +60,7 @@ class Typology(db.Model):
             "user_id": self.user_id,
             "name": self.name,
             "description": self.description,
+            "is_active": self.is_active,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "deleted_at": self.deleted_at,

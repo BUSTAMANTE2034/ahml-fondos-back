@@ -44,11 +44,11 @@ class RecordFile(db.Model):
 
     # lo vamos a generar en el endpoint, pero aquí lo dejamos NOT NULL
     reference_code = db.Column(db.String(255), nullable=False)
-
+    previous_reference_code = db.Column(db.String(255), nullable=True)
     # nuevo campo para construir el código
     file_number = db.Column(db.String(50), nullable=True)
 
-    subject = db.Column(db.String(255), nullable=False)
+    subject = db.Column(db.String(1500), nullable=False)
 
     # confidencialidad
     sensitive_data = db.Column(db.Boolean, default=False, nullable=False)
@@ -94,22 +94,24 @@ class RecordFile(db.Model):
     # datos físicos
     box_number = db.Column(db.String(50), nullable=True)
     page_count = db.Column(db.Integer, nullable=True)
+    document_sizes = db.Column(db.String(500), nullable=True)
 
     # fecha documental
     file_date = db.Column(db.Date, nullable=True)
 
     # auditoría
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
+     db.DateTime,
+    server_default=db.func.now(),
+    nullable=False,
+)
+
     updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
+    db.DateTime,
+    server_default=db.func.now(),
+    server_onupdate=db.func.now(),
+    nullable=False,
+)
     deleted_at = db.Column(db.DateTime, nullable=True)
 
     # preservación / conservación
@@ -138,6 +140,7 @@ class RecordFile(db.Model):
         return {
             "id": self.id,
             "reference_code": self.reference_code,
+            "previous_reference_code": self.previous_reference_code,
             "file_number": self.file_number,
             "subject": self.subject,
             "sensitive_data": self.sensitive_data,
@@ -150,6 +153,7 @@ class RecordFile(db.Model):
             "location_id": self.location_id,
             "box_number": self.box_number,
             "page_count": self.page_count,
+            "document_sizes": self.document_sizes,
             "file_date": self.file_date,
             "created_at": self.created_at,
             "updated_at": self.updated_at,

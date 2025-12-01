@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{BACKEND_URL}}/auth/login
+  url: {{BACKEND_URL}}auth/login
   body: json
   auth: inherit
 }
@@ -13,7 +13,6 @@ post {
 body:json {
   { 
     "email": "administrator@yopmail.com", 
-    "password": "123asdZXC_", 
-    "remember_me": false 
+    "password": "123asdZXC_"
   }
 }

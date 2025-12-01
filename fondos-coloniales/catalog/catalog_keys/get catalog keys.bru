@@ -5,16 +5,16 @@ meta {
 }
 
 get {
-  url: {{BACKEND_URL}}/catalog-keys?user_id=1
+  url: {{BACKEND_URL}}/catalog-keys
   body: none
   auth: inherit
 }
 
 params:query {
-  user_id: 1
   ~query: FPM
-  ~page: 
-  ~per_page : 
-  ~per_page : 
-  ~query: 
+  ~page: 1
+  ~per_page: 20
+  ~query: administrator@yopmail.com
+  ~user_id: 1
+  ~entity_type: fund,section
 }

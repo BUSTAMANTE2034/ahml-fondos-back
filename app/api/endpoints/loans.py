@@ -40,6 +40,7 @@ def _parse_datetime(dt_str: str):
 
 def _serialize_loan(loan: Loan):
     base = LoanResponseSchema().dump(loan)
+
     base["record_file"] = (
         {
             "id": loan.record_file.id,
@@ -72,6 +73,14 @@ def _serialize_loan(loan: Loan):
         if loan.loaded_by_user
         else None
     )
+
+    # === NUEVO estado dinámico ===
+    base["is_active"] = (
+        loan.issued_by_user_id is not None
+        and loan.loaded_at is not None
+        and loan.returned_at is None
+    )
+
     return base
 
 
@@ -89,9 +98,13 @@ def _mark_record_available(record_file: RecordFile):
 @api.route("")
 class LoanList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         """Lista de préstamos (filtrable por query, fechas y activos)."""
+
+        from sqlalchemy import or_, and_, desc
+
+        # paginación segura
         try:
             page = int(request.args.get("page", 1))
             per_page = int(request.args.get("per_page", 20))
@@ -107,6 +120,7 @@ class LoanList(Resource):
 
         q = Loan.query.filter(Loan.deleted_at.is_(None))
 
+        # búsqueda libre
         if query_text:
             like = f"%{query_text}%"
             q = (
@@ -119,6 +133,7 @@ class LoanList(Resource):
                 )
             )
 
+        # filtros de fechas
         if loaded_after:
             q = q.filter(Loan.loaded_at >= loaded_after)
         if loaded_before:
@@ -128,25 +143,60 @@ class LoanList(Resource):
         if returned_before:
             q = q.filter(Loan.returned_at <= returned_before)
 
-        if active and active.lower() in ("true", "1", "yes"):
-            q = q.filter(or_(Loan.returned_at.is_(None), Loan.loaded_by_user_id.is_(None)))
+        # ============================
+        # ⚡ FILTRO active/inactive
+        # ============================
+        if active is not None:
+            is_active = active.lower() in ("true", "1", "yes")
 
-        q = q.order_by(Loan.id.desc())
+            if is_active:
+                # préstamo activo → emitido, cargado, no devuelto
+                q = q.filter(
+                    Loan.issued_by_user_id.isnot(None),
+                    Loan.loaded_at.isnot(None),
+                    Loan.returned_at.is_(None),
+                )
+            else:
+                # préstamo inactivo → no iniciado o devuelto
+                q = q.filter(
+                    or_(
+                        # nunca iniciado
+                        and_(
+                            Loan.issued_by_user_id.is_(None),
+                            Loan.loaded_at.is_(None),
+                        ),
+                        # devuelto
+                        Loan.returned_at.isnot(None),
+                    )
+                )
+
+        # orden por mas reciente
+        q = q.order_by(desc(Loan.loaded_at), desc(Loan.id))
+
+        # paginado estilo Funds
         paginated = q.paginate(page=page, per_page=per_page, error_out=False)
+        items = paginated.items
+
+        loans = [_serialize_loan(l) for l in items]
 
         return {
             "message": "Préstamos obtenidos correctamente.",
-            "loans": [_serialize_loan(l) for l in paginated.items],
+            "loans": loans,
             "pagination": {
                 "total": paginated.total,
                 "pages": paginated.pages,
                 "current_page": paginated.page,
                 "per_page": paginated.per_page,
+                "has_next": paginated.has_next,
+                "has_prev": paginated.has_prev,
+                "next_page": paginated.next_num if paginated.has_next else None,
+                "prev_page": paginated.prev_num if paginated.has_prev else None,
             },
         }, 200
 
+ 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Crea un préstamo.
@@ -248,7 +298,7 @@ class LoanList(Resource):
 @api.route("/<int:loan_id>")
 class LoanDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, loan_id: int):
         """Obtiene un préstamo."""
         loan = Loan.query.get(loan_id)
@@ -257,7 +307,7 @@ class LoanDetail(Resource):
         return {"message": "Préstamo obtenido correctamente.", "loan": _serialize_loan(loan)}, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, loan_id: int):
         """Actualiza solo la descripción del préstamo."""
         schema = LoanUpdateSchema()
@@ -288,7 +338,7 @@ class LoanDetail(Resource):
 @api.route("/<int:loan_id>/receive")
 class LoanReceive(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, loan_id: int):
         """
         Endpoint de recepción del préstamo.
@@ -320,3 +370,64 @@ class LoanReceive(Resource):
             return {"message": "Error al guardar recepción.", "error": str(e)}, 500
 
         return {"message": "Préstamo recibido y expediente devuelto.", "loan": _serialize_loan(loan)}, 200
+
+@api.route("/receive-by-record-file/<int:record_file_id>")
+class LoanReceiveByRecordFile(Resource):
+    @login_required
+    @role_required("admin", "manager","archivist")
+    def put(self, record_file_id: int):
+        """
+        Marca como devuelto el préstamo activo del expediente.
+        Recibe: record_file_id
+        Busca el préstamo activo más reciente.
+        """
+
+        # 1. Buscar expediente
+        rf = RecordFile.query.get(record_file_id)
+        if not rf or rf.deleted_at is not None:
+            return {"message": "El expediente no existe o está eliminado."}, 404
+
+        # 2. Verificar si está prestado
+        if rf.availability_status != "on_loan":
+            return {
+                "message": "El expediente no está prestado actualmente.",
+                "current_availability_status": rf.availability_status,
+            }, 400
+
+        # 3. Buscar el préstamo activo más reciente
+        last_active_loan = (
+            Loan.query
+            .filter(
+                Loan.record_file_id == record_file_id,
+                Loan.deleted_at.is_(None),
+                Loan.returned_at.is_(None),         # préstamo NO devuelto
+                Loan.loaded_at.isnot(None)          # préstamo iniciado
+            )
+            .order_by(Loan.loaded_at.desc(), Loan.id.desc())
+            .first()
+        )
+
+        if not last_active_loan:
+            return {
+                "message": "No existe un préstamo activo para este expediente."
+            }, 404
+
+        # 4. Marcar devolución
+        last_active_loan.loaded_by_user_id = current_user.id
+        last_active_loan.returned_at = db.func.now()
+        rf.availability_status = "available"
+
+        try:
+            last_active_loan.updated_at = db.func.now()
+            db.session.commit()
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            return {
+                "message": "Error al guardar devolución.",
+                "error": str(e),
+            }, 500
+
+        return {
+            "message": "Préstamo del expediente marcado como devuelto.",
+            "loan": _serialize_loan(last_active_loan),
+        }, 200

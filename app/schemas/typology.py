@@ -22,6 +22,7 @@ class TypologyBaseSchema(Schema):
         },
     )
     description = fields.Str(required=False)
+    is_active = fields.Bool(dump_only=True)
 
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
@@ -39,6 +40,7 @@ class TypologyUpdateSchema(Schema):
     id = fields.Int(required=True, error_messages={"required": "El ID de la tipología es obligatorio."})
     name = fields.Str(validate=validate.Length(min=1, max=255))
     description = fields.Str()
+    is_active = fields.Bool()
     updated_at = fields.DateTime(dump_only=True)
 
 

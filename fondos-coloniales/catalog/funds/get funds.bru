@@ -5,12 +5,13 @@ meta {
 }
 
 get {
-  url: {{BACKEND_URL}}/funds
+  url: {{BACKEND_URL}}/funds?query
   body: none
   auth: inherit
 }
 
 params:query {
+  query: 
   ~page: 
   ~per_page: 
   ~is_active: 
@@ -20,5 +21,4 @@ params:query {
   ~acronym: 
   ~start_date: 
   ~end_date: 
-  ~query: 
 }

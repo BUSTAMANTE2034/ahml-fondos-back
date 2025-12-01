@@ -4,10 +4,15 @@ from marshmallow import Schema, fields, validate
 class RecordFileBaseSchema(Schema):
     id = fields.Int(dump_only=True)
     reference_code = fields.Str(dump_only=True)
+    previous_reference_code = fields.Str(
+        allow_none=True,
+        validate=validate.Length(max=255)
+    )
+
 
     subject = fields.Str(
         required=True,
-        validate=validate.Length(min=1, max=255),
+        validate=validate.Length(min=1, max=1500),
     )
     file_number = fields.Str(validate=validate.Length(max=50))
 
@@ -26,6 +31,10 @@ class RecordFileBaseSchema(Schema):
 
     box_number = fields.Str(validate=validate.Length(max=50))
     page_count = fields.Int(allow_none=True)
+    document_sizes = fields.Str(
+        allow_none=True,
+        validate=validate.Length(max=500)
+    )
 
     file_date = fields.Date(allow_none=True)
     last_preservation_date = fields.Date(allow_none=True)
@@ -50,7 +59,8 @@ class RecordFileCreateSchema(RecordFileBaseSchema):
 class RecordFileUpdateSchema(Schema):
     id = fields.Int(required=True)
 
-    subject = fields.Str(validate=validate.Length(min=1, max=255))
+    subject = fields.Str(validate=validate.Length(min=1, max=1500))
+    previous_reference_code = fields.Str(validate=validate.Length(max=255))
     file_number = fields.Str(validate=validate.Length(max=50))
     sensitive_data = fields.Bool()
     comments = fields.Str()
@@ -65,6 +75,11 @@ class RecordFileUpdateSchema(Schema):
 
     box_number = fields.Str(validate=validate.Length(max=50))
     page_count = fields.Int(allow_none=True)
+    document_sizes = fields.Str(
+        allow_none=True,
+        validate=validate.Length(max=500)
+    )
+    
 
     file_date = fields.Date(allow_none=True)
     last_preservation_date = fields.Date(allow_none=True)

@@ -24,13 +24,14 @@ class Deterioration(db.Model):
     __tablename__ = "deterioration"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-
+    
     # quién lo registró
     user_id = db.Column(
         db.Integer,
         db.ForeignKey("user.id"),
         nullable=True,
     )
+    is_active = db.Column(db.Boolean, default=True, nullable=True)
 
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -60,6 +61,7 @@ class Deterioration(db.Model):
             "id": self.id,
             "user_id": self.user_id,
             "name": self.name,
+            "is_active": self.is_active,
             "description": self.description,
             "created_at": self.created_at,
             "updated_at": self.updated_at,

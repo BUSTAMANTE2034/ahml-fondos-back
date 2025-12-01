@@ -5,7 +5,17 @@ meta {
 }
 
 get {
-  url: {{BACKEND_URL}}/loans
+  url: {{BACKEND_URL}}/loans?active=true
   body: none
   auth: inherit
+}
+
+params:query {
+  active: true
+  ~page: 
+  ~per_page: 
+  ~query: 
+  ~loaded_after: 
+  ~loaded_before: 
+  ~returned_after: 
 }

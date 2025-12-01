@@ -116,7 +116,7 @@ class ChangePassword(Resource):
         new_password_confirmation = data["new_password_confirmation"]
 
         if not bcrypt.check_password_hash(current_user.password, current_password):
-            return {"message": "La contraseña actual es incorrecta."}, 401
+            return {"message": "La contraseña actual es incorrecta."}, 400
 
         if new_password != new_password_confirmation:
             return {

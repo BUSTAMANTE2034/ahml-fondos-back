@@ -48,7 +48,7 @@ class CatalogKeyList(Resource):
         entity_type_param = request.args.get("entity_type")
         user_id_param = request.args.get("user_id")
         query_param = request.args.get("query", "").strip()
-
+        
         try:
             page = int(request.args.get("page", 1))
             per_page = int(request.args.get("per_page", 20))
@@ -64,9 +64,15 @@ class CatalogKeyList(Resource):
             query = query.filter(CatalogKey.is_active.is_(is_active_bool))
 
         # filtro por tipo de entidad
+        # if entity_type_param:
+        #     query = query.filter(CatalogKey.entity_type == entity_type_param)
         if entity_type_param:
-            query = query.filter(CatalogKey.entity_type == entity_type_param)
+            entity_types = [e.strip() for e in entity_type_param.split(",") if e.strip()]
 
+            if len(entity_types) == 1:
+                query = query.filter(CatalogKey.entity_type == entity_types[0])
+            else:
+                query = query.filter(CatalogKey.entity_type.in_(entity_types))
         # NUEVO: filtro por usuario creador/modificador
         if user_id_param:
             try:
@@ -87,7 +93,12 @@ class CatalogKeyList(Resource):
                 )
             )
 
-        query = query.order_by(CatalogKey.updated_at.desc())
+        from sqlalchemy import desc
+
+        query = query.order_by(
+    desc(CatalogKey.is_active),
+    desc(CatalogKey.updated_at)
+)
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -100,6 +111,7 @@ class CatalogKeyList(Resource):
             data[i]["user"] = (
                 {
                     "id": item.user.id,
+                    "employee_id":item.user.employee_id,
                     "first_name": item.user.first_name,
                     "last_name": item.user.last_name,
                     "email": item.user.email,

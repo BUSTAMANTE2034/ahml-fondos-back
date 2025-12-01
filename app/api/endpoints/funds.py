@@ -19,17 +19,22 @@ from app.schemas.fund import (
 )
 from app.utils.security import role_required
 
-api = Namespace("funds", description="Operaciones de gestión de fondos documentales")
+api = Namespace(
+    "funds", description="Operaciones de gestión de fondos documentales")
 
 
 def _parse_date(date_str: str):
-    """Intenta parsear una fecha 'YYYY-MM-DD'. Devuelve None si falla."""
+    """Acepta formatos YYYY-MM-DD y DD-MM-YYYY."""
     if not date_str:
         return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            pass
+
+    return None
 
 
 @api.route("")
@@ -111,14 +116,36 @@ class FundList(Resource):
             query = query.filter(Fund.acronym.ilike(like_acronym))
 
         # filtros de fecha
+            # filtros de fecha
         start_date_filter = _parse_date(start_date_param)
         end_date_filter = _parse_date(end_date_param)
 
-        if start_date_filter:
-            query = query.filter(Fund.start_date >= start_date_filter)
-        if end_date_filter:
-            query = query.filter(Fund.end_date <= end_date_filter)
+        # SOLO start_date → fondos donde (start >= filtro) O (end >= filtro)
+        if start_date_filter and not end_date_filter:
+            query = query.filter(
+                or_(
+                    Fund.start_date >= start_date_filter,
+                    Fund.end_date >= start_date_filter
+                )
+            )
 
+        # SOLO end_date → fondos donde (start <= filtro) O (end <= filtro)
+        elif end_date_filter and not start_date_filter:
+            query = query.filter(
+                or_(
+                    Fund.start_date <= end_date_filter,
+                    Fund.end_date <= end_date_filter
+                )
+            )
+
+        # AMBOS → fondos cuyo rango intersecta el rango solicitado
+        elif start_date_filter and end_date_filter:
+            query = query.filter(
+                Fund.start_date <= end_date_filter,
+                Fund.end_date >= start_date_filter
+            )
+
+        # búsqueda libre
         # búsqueda libre
         if query_param:
             like = f"%{query_param}%"
@@ -126,13 +153,21 @@ class FundList(Resource):
                 or_(
                     Fund.name.ilike(like),
                     Fund.acronym.ilike(like),
+                    CatalogKey.key.ilike(like),
+                    CatalogKey.name.ilike(like),
                 )
             )
 
         # orden
-        query = query.order_by(Fund.updated_at.desc())
+        # query = query.order_by(Fund.updated_at.desc())
+        from sqlalchemy import desc
 
-        paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+        query = query.order_by(
+            desc(Fund.is_active),
+            desc(Fund.updated_at))
+
+        paginated = query.paginate(
+            page=page, per_page=per_page, error_out=False)
         items = paginated.items
 
         schema = FundResponseSchema(many=True)
@@ -143,6 +178,7 @@ class FundList(Resource):
             data[i]["user"] = (
                 {
                     "id": item.user.id,
+                    "employee_id": item.user.employee_id,
                     "first_name": item.user.first_name,
                     "last_name": item.user.last_name,
                     "email": item.user.email,

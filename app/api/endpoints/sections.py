@@ -23,13 +23,17 @@ api = Namespace("sections", description="Operaciones de gestión de secciones ad
 
 
 def _parse_date(date_str: str):
-    """Intenta parsear una fecha 'YYYY-MM-DD'. Devuelve None si falla."""
+    """Acepta formatos YYYY-MM-DD y DD-MM-YYYY."""
     if not date_str:
         return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            pass
+
+    return None
 
 
 @api.route("")
@@ -37,30 +41,6 @@ class SectionList(Resource):
     @login_required
     @role_required("admin", "manager")
     def get(self):
-        """
-        Represents an administrative/organizational section in the AHML Fondos system.
-
-        Descripción:
-            Obtiene una lista paginada de secciones no eliminadas lógicamente,
-            permitiendo filtrar por estado, usuario creador/modificador, clave
-            de catálogo asociada, nombre, acrónimo y rango de fechas de vigencia.
-            También permite una búsqueda libre por nombre y acrónimo.
-
-        Parámetros de consulta:
-            - page (int, opcional): Número de página (por defecto 1).
-            - per_page (int, opcional): Tamaño de página (por defecto 20).
-            - is_active (bool|str, opcional): Filtra por estado activo/inactivo ("true"/"false"/"1"/"0").
-            - user_id (int, opcional): Filtra por el usuario que creó/modificó la sección.
-            - catalog_key_id (int, opcional): Filtra por la clave de catálogo asociada.
-            - name (str, opcional): Filtra por nombre parcial de la sección.
-            - acronym (str, opcional): Filtra por acrónimo parcial.
-            - start_date (date, opcional, formato YYYY-MM-DD): Incluye secciones con start_date >= a este valor.
-            - end_date (date, opcional, formato YYYY-MM-DD): Incluye secciones con end_date <= a este valor.
-            - query (str, opcional): Búsqueda libre aplicada sobre name y acronym.
-
-        Respuestas:
-            200: Estructura con lista de secciones y datos de paginación.
-        """
         is_active_param = request.args.get("is_active")
         user_id_param = request.args.get("user_id")
         catalog_key_id_param = request.args.get("catalog_key_id")
@@ -92,7 +72,7 @@ class SectionList(Resource):
             except ValueError:
                 pass
 
-        # catalog key
+        # catalog_key_id directo
         if catalog_key_id_param:
             try:
                 ck_id_int = int(catalog_key_id_param)
@@ -110,26 +90,53 @@ class SectionList(Resource):
             like_acronym = f"%{acronym_param}%"
             query = query.filter(Section.acronym.ilike(like_acronym))
 
-        # fechas
+        # fechas usando lógica igual a fondos
         start_date_filter = _parse_date(start_date_param)
         end_date_filter = _parse_date(end_date_param)
 
-        if start_date_filter:
-            query = query.filter(Section.start_date >= start_date_filter)
-        if end_date_filter:
-            query = query.filter(Section.end_date <= end_date_filter)
+        # SOLO start_date
+        if start_date_filter and not end_date_filter:
+            query = query.filter(
+                or_(
+                    Section.start_date >= start_date_filter,
+                    Section.end_date >= start_date_filter,
+                )
+            )
 
-        # búsqueda libre
+        # SOLO end_date
+        elif end_date_filter and not start_date_filter:
+            query = query.filter(
+                or_(
+                    Section.start_date <= end_date_filter,
+                    Section.end_date <= end_date_filter,
+                )
+            )
+
+        # AMBOS → rango que intersecta
+        elif start_date_filter and end_date_filter:
+            query = query.filter(
+                Section.start_date <= end_date_filter,
+                Section.end_date >= start_date_filter,
+            )
+
+        # búsqueda libre (name, acronym, key.key, key.name)
         if query_param:
             like = f"%{query_param}%"
             query = query.filter(
                 or_(
                     Section.name.ilike(like),
                     Section.acronym.ilike(like),
+                    CatalogKey.key.ilike(like),
+                    CatalogKey.name.ilike(like),
                 )
             )
 
-        query = query.order_by(Section.updated_at.desc())
+        # ORDENO por estado y updated_at DESC igual que fondos
+        from sqlalchemy import desc
+        query = query.order_by(
+            desc(Section.is_active),
+            desc(Section.updated_at)
+        )
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
@@ -143,11 +150,11 @@ class SectionList(Resource):
                 {
                     "id": item.user.id,
                     "first_name": item.user.first_name,
+                    "employee_id": item.user.employee_id,
                     "last_name": item.user.last_name,
                     "email": item.user.email,
                 }
-                if item.user
-                else None
+                if item.user else None
             )
             data[i]["catalog_key"] = (
                 {
@@ -155,8 +162,7 @@ class SectionList(Resource):
                     "key": item.catalog_key.key,
                     "name": item.catalog_key.name,
                 }
-                if item.catalog_key
-                else None
+                if item.catalog_key else None
             )
 
         return {
@@ -173,6 +179,7 @@ class SectionList(Resource):
                 "prev_page": paginated.prev_num if paginated.has_prev else None,
             },
         }, 200
+
 
     @login_required
     @role_required("admin", "manager")

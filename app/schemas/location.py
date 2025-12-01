@@ -20,7 +20,7 @@ class LocationBaseSchema(Schema):
         },
     )
     user_id = fields.Int(dump_only=True)
-
+    is_active = fields.Bool(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
     deleted_at = fields.DateTime(dump_only=True)
@@ -36,6 +36,7 @@ class LocationUpdateSchema(Schema):
 
     id = fields.Int(required=True, error_messages={"required": "El ID de la ubicación es obligatorio."})
     name = fields.Str(validate=validate.Length(min=1, max=255))
+    is_active = fields.Bool()
     updated_at = fields.DateTime(dump_only=True)
 
 
