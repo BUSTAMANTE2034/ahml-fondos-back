@@ -30,11 +30,22 @@ BLOCKING_RECORD_STATUSES = ["on_loan", "under_review", "unavailable"]
 def _parse_datetime(dt_str: str):
     if not dt_str:
         return None
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+
+    # formatos aceptados
+    formats = [
+        "%Y-%m-%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%d-%m-%Y",          #soporta 27-11-2025
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+    ]
+
+    for fmt in formats:
         try:
             return datetime.strptime(dt_str, fmt)
         except ValueError:
             continue
+
     return None
 
 
