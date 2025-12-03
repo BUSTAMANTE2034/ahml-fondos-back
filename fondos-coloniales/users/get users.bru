@@ -1,0 +1,19 @@
+meta {
+  name: get users
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}users?role=archivist&page=1&per_page=20
+  body: none
+  auth: inherit
+}
+
+params:query {
+  role: archivist
+  page: 1
+  per_page: 20
+  ~is_active: null
+  ~query: 000
+}

@@ -1,0 +1,23 @@
+meta {
+  name: create serie
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BACKEND_URL}}/series
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "catalog_key_id": 1,
+    "name": "Presidencia Municipal SEries",
+    "acronym": "FPMGD",
+    "start_date": "1985-01-01",
+    "end_date": "2005-12-31",
+    "is_active": true
+  }
+  
+}

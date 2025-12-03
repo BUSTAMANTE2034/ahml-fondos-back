@@ -1,0 +1,11 @@
+meta {
+  name: delete deterioration
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/deteriorations/5
+  body: none
+  auth: inherit
+}

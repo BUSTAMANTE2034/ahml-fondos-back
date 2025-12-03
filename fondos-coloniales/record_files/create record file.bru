@@ -1,0 +1,33 @@
+meta {
+  name: create record file
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BACKEND_URL}}/record-files
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "subject": "Solicitud de licencia de funcionamiento 2005",
+    "file_number": "1293",
+    "sensitive_data": false,
+    "comments": "Contiene anexos y dictamen.",
+    "availability_status": "available",
+    "fund_id": 1,
+    "section_id": 1,
+    "series_id": 2,
+    "location_id": 2,
+    "box_number": "5",
+    "page_count": 48,
+    "file_date": "2005-06-14",
+    "last_preservation_date": "2024-10-01",
+    "last_fund_date": "2005-12-31",
+    "deterioration_status_id": 1,
+    "typology_ids": [2, 3, 1]
+  }
+  
+}

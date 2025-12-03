@@ -1,0 +1,11 @@
+meta {
+  name: get user by id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BACKEND_URL}}/users/2
+  body: none
+  auth: inherit
+}

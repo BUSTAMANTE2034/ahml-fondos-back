@@ -1,0 +1,11 @@
+meta {
+  name: delete movement
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/movement-history/3
+  body: none
+  auth: inherit
+}

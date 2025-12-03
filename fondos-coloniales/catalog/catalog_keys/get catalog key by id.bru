@@ -1,0 +1,11 @@
+meta {
+  name: get catalog key by id
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BACKEND_URL}}/catalog-keys/1
+  body: json
+  auth: inherit
+}

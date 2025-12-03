@@ -1,0 +1,23 @@
+meta {
+  name: update fund
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/funds/1
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "catalog_key_id": 1,
+    "name": "Presidencia Municipal",
+    "acronym": "FPM",
+    "start_date": "1985-01-01",
+    "end_date": "2005-12-31",
+    "is_active": true
+  }
+  
+}

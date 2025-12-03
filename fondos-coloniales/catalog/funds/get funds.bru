@@ -1,0 +1,24 @@
+meta {
+  name: get funds
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/funds?query
+  body: none
+  auth: inherit
+}
+
+params:query {
+  query: 
+  ~page: 
+  ~per_page: 
+  ~is_active: 
+  ~user_id: 
+  ~catalog_key_id: 
+  ~name: 
+  ~acronym: 
+  ~start_date: 
+  ~end_date: 
+}

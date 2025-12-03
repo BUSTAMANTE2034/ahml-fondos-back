@@ -1,0 +1,11 @@
+meta {
+  name: delete record file
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/record-files/6
+  body: none
+  auth: inherit
+}
