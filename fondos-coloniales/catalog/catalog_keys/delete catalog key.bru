@@ -1,0 +1,11 @@
+meta {
+  name: delete catalog key
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/catalog-keys/2
+  body: none
+  auth: inherit
+}

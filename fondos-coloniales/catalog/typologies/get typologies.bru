@@ -1,0 +1,19 @@
+meta {
+  name: get typologies
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/typologies
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 
+  ~per_page: 
+  ~user_id: 
+  ~name: baja
+  ~query: malo
+}

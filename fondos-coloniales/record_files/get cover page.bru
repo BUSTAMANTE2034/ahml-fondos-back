@@ -1,0 +1,15 @@
+meta {
+  name: get cover page
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{BACKEND_URL}}/record-files/print-cover-page?record_file_id=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  record_file_id: 10
+}

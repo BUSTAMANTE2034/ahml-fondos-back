@@ -1,0 +1,18 @@
+meta {
+  name: update record file
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/record-files/3
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "subject": "Lorem Ipsum es un texto de relleno en latín que se utiliza comúnmente en diseño gráfico, editorial y web para mostrar cómo se verá un diseño antes de tener el texto final. Funciona como un marcador de posición para el contenido real, permitiendo a los diseñadores centrarse en la estética de la página, como la tipografía, los colores y el diseño, sin distraerse con el texto de relleno en sí. Lorem Ipsum es un texto de relleno en latín que se utiliza comúnmente en diseño gráfico, editorial y web para mostrar cómo se verá un diseño antes de tener el texto final. Funciona como un marcador de posición para el contenido real, permitiendo a los diseñadores centrarse en la estética de la página, como la tipografía, los colores y el diseño, sin distraerse con el texto de relleno en sí. Lorem Ipsum es un texto de relleno en latín que se utiliza comúnmente en diseño gráfico, editorial y web para mostrar cómo se verá un diseño antes de tener el texto final. Funciona como un marcador de posición para el contenido real, permitiendo a los diseñadores centrarse en la estética de la página, como la tipografía, los colores y el diseño, sin distraerse con el texto de relleno en sí."
+  }
+  
+}

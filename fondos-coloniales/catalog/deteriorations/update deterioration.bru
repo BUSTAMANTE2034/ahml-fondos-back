@@ -1,0 +1,18 @@
+meta {
+  name: update deterioration
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/deteriorations/5
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Baja Documentall",
+    "description": "No se encuentra en condiciones para consulta ni tratado."
+  }
+}

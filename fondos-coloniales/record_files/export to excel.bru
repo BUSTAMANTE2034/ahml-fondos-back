@@ -1,0 +1,37 @@
+meta {
+  name: export to excel
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{BACKEND_URL}}/record-files/export-excel?
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~fund_name: col
+  ~availability_status: on_loan
+  ~file_number: 453
+  ~page: 
+  ~per_page: 
+  ~reference_code: FPMGD-C.5
+  ~subject: 
+  ~query: 453
+  ~box_number: true
+  ~sensitive_data: 
+  ~section_name: 
+  ~series_name: ser
+  ~location_name: 
+  ~deterioration_name: 
+  ~typology_name: 
+  ~file_date_after: 
+  ~file_date_before: 
+  ~updated_at_asc: 
+  ~updated_at_desc: 
+  ~file_date_asc: 
+  ~file_date_desc: 
+  ~deterioration_updated_at_asc: 
+  ~deterioration_updated_at_desc: 
+}

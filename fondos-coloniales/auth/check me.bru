@@ -1,0 +1,11 @@
+meta {
+  name: check me
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BACKEND_URL}}/auth/me
+  body: none
+  auth: inherit
+}
