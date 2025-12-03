@@ -122,7 +122,7 @@ class LocationList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Crea una nueva ubicación física.
@@ -169,7 +169,7 @@ class LocationList(Resource):
 @api.route("/<int:location_id>")
 class LocationDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, location_id: int):
         """
         Obtiene ubicación por ID.
@@ -197,7 +197,7 @@ class LocationDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, location_id: int):
         """
         Actualiza parcialmente una ubicación.
@@ -251,7 +251,7 @@ class LocationDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, location_id: int):
         """
         Borrado lógico:

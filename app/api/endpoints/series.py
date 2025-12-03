@@ -39,7 +39,7 @@ def _parse_date(date_str: str):
 @api.route("")
 class SeriesList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         is_active_param = request.args.get("is_active")
         user_id_param = request.args.get("user_id")
@@ -284,7 +284,7 @@ class SeriesList(Resource):
 @api.route("/<int:series_id>")
 class SeriesDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, series_id: int):
         """
         Represents a documentary series in the AHML Fondos system.
@@ -332,7 +332,7 @@ class SeriesDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, series_id: int):
         """
         Represents a documentary series in the AHML Fondos system.
@@ -454,7 +454,7 @@ class SeriesDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, series_id: int):
         """
         Represents a documentary series in the AHML Fondos system.

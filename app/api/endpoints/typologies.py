@@ -22,7 +22,7 @@ api = Namespace("typologies", description="Operaciones de gestión de tipología
 @api.route("")
 class TypologyList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         """
         Represents a documentary typology in the AHML Fondos system.
@@ -183,7 +183,7 @@ class TypologyList(Resource):
 class TypologyDetail(Resource):
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, typology_id: int):
         """
         Obtiene una tipología documental por ID.
@@ -210,7 +210,7 @@ class TypologyDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, typology_id: int):
         """
         Actualiza parcialmente una tipología documental.
@@ -266,7 +266,7 @@ class TypologyDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, typology_id: int):
         """
         Realiza el borrado lógico:

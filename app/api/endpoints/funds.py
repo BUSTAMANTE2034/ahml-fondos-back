@@ -212,7 +212,7 @@ class FundList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Represents a documentary fund in the AHML Fondos system.
@@ -313,7 +313,7 @@ class FundList(Resource):
 @api.route("/<int:fund_id>")
 class FundDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, fund_id: int):
         """
         Represents a documentary fund in the AHML Fondos system.
@@ -361,7 +361,7 @@ class FundDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, fund_id: int):
         """
         Represents a documentary fund in the AHML Fondos system.
@@ -483,7 +483,7 @@ class FundDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, fund_id: int):
         """
         Represents a documentary fund in the AHML Fondos system.

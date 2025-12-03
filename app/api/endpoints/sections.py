@@ -39,7 +39,7 @@ def _parse_date(date_str: str):
 @api.route("")
 class SectionList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         is_active_param = request.args.get("is_active")
         user_id_param = request.args.get("user_id")
@@ -182,7 +182,7 @@ class SectionList(Resource):
 
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Represents an administrative/organizational section in the AHML Fondos system.
@@ -330,7 +330,7 @@ class SectionDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, section_id: int):
         """
         Represents an administrative/organizational section in the AHML Fondos system.
@@ -450,7 +450,7 @@ class SectionDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, section_id: int):
         """
         Represents an administrative/organizational section in the AHML Fondos system.

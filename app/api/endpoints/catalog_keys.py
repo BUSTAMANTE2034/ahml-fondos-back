@@ -22,7 +22,7 @@ api = Namespace("catalog-keys", description="Operaciones de gestión de claves d
 @api.route("")
 class CatalogKeyList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         """
         Represents a catalog key that can be assigned to archival entities.
@@ -136,7 +136,7 @@ class CatalogKeyList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Represents a catalog key that can be assigned to archival entities.
@@ -208,7 +208,7 @@ class CatalogKeyList(Resource):
 @api.route("/<int:key_id>")
 class CatalogKeyDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, key_id: int):
         """
         Represents a catalog key that can be assigned to archival entities.
@@ -247,7 +247,7 @@ class CatalogKeyDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, key_id: int):
         """
         Represents a catalog key that can be assigned to archival entities.
@@ -340,7 +340,7 @@ class CatalogKeyDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, key_id: int):
         """
         Represents a catalog key that can be assigned to archival entities.

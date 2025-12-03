@@ -112,7 +112,7 @@ class DeteriorationList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Crea un nuevo deterioro.
@@ -157,7 +157,7 @@ class DeteriorationList(Resource):
 class DeteriorationDetail(Resource):
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, deterioration_id: int):
         """
         Obtiene deterioro por ID.
@@ -185,7 +185,7 @@ class DeteriorationDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def put(self, deterioration_id: int):
         """
         Actualiza parcialmente un deterioro.
@@ -241,7 +241,7 @@ class DeteriorationDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def delete(self, deterioration_id: int):
         """
         Borrado lógico:
