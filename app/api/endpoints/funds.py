@@ -40,7 +40,7 @@ def _parse_date(date_str: str):
 @api.route("")
 class FundList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         """
         Represents a documentary fund in the AHML Fondos system.

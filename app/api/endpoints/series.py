@@ -183,7 +183,7 @@ class SeriesList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Represents a documentary series in the AHML Fondos system.

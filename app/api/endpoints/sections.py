@@ -282,7 +282,7 @@ class SectionList(Resource):
 @api.route("/<int:section_id>")
 class SectionDetail(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self, section_id: int):
         """
         Represents an administrative/organizational section in the AHML Fondos system.

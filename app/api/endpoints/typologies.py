@@ -127,7 +127,7 @@ class TypologyList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def post(self):
         """
         Represents a documentary typology in the AHML Fondos system.

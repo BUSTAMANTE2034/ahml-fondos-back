@@ -22,7 +22,7 @@ api = Namespace("deteriorations", description="Operaciones de gestión de deteri
 @api.route("")
 class DeteriorationList(Resource):
     @login_required
-    @role_required("admin", "manager")
+    @role_required("admin", "manager","archivist")
     def get(self):
         """
         Obtiene lista paginada de deterioros no eliminados lógicamente,
