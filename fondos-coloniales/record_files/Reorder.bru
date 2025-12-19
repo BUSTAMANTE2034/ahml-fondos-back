@@ -1,0 +1,18 @@
+meta {
+  name: Reorder
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{BACKEND_URL}}/record-files/reorder-by-file-date
+  body: json
+  auth: inherit
+}
+
+params:query {
+  ~series_id: 3
+  ~fund_id: 1
+  ~section_id: 
+  ~box_number: 
+}

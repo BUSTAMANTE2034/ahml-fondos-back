@@ -14,7 +14,7 @@ class RecordFileBaseSchema(Schema):
         required=True,
         validate=validate.Length(min=1, max=1500),
     )
-    file_number = fields.Str(validate=validate.Length(max=50))
+    file_number = fields.Str(dump_only=True)
 
     sensitive_data = fields.Bool(load_default=False)
     comments = fields.Str()
@@ -61,7 +61,7 @@ class RecordFileUpdateSchema(Schema):
 
     subject = fields.Str(validate=validate.Length(min=1, max=1500))
     previous_reference_code = fields.Str(validate=validate.Length(max=255))
-    file_number = fields.Str(validate=validate.Length(max=50))
+    file_number = fields.Str(dump_only=True)
     sensitive_data = fields.Bool()
     comments = fields.Str()
     availability_status = fields.Str(

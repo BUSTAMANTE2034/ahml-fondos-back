@@ -180,8 +180,8 @@ def _build_record_file_query_from_request(req: "Request"):
     Construye un query de `RecordFile` aplicando todos los filtros soportados,
     a partir de los parámetros del request.
 
-    IMPORTANTE: solo se consideran los filtros listados abajo. Ya no se filtra
-    por IDs (fund_id, section_id, etc.) ni por usuario.
+    IMPORTANTE: se soportan filtros tanto por ID (prioridad) como por nombre
+para mantener compatibilidad con versiones anteriores.
 
     Parámetros de consulta soportados (query string):
 
@@ -291,6 +291,13 @@ def _build_record_file_query_from_request(req: "Request"):
     deterioration_name_param = (req.args.get(
         "deterioration_name", "") or "").strip()
     typology_name_param = (req.args.get("typology_name", "") or "").strip()
+    
+    fund_id_param = req.args.get("fund_id", type=int)
+    section_id_param = req.args.get("section_id", type=int)
+    series_id_param = req.args.get("series_id", type=int)
+    location_id_param = req.args.get("location_id", type=int)
+    deterioration_id_param = req.args.get("deterioration_id", type=int)
+    typology_id_param = req.args.get("typology_id", type=int)
 
     # --- Filtros de estado / confidencialidad ---
     sensitive_param = (req.args.get("sensitive") or "all").strip().lower()
@@ -314,9 +321,10 @@ def _build_record_file_query_from_request(req: "Request"):
         like = f"%{query_param}%"
         q = q.filter(
             or_(
-                RecordFile.reference_code.ilike(like),
-                RecordFile.file_number.ilike(like),
-                RecordFile.box_number.ilike(like),
+                RecordFile.subject.ilike(like),
+                # RecordFile.reference_code.ilike(like),
+                # RecordFile.file_number.ilike(like),
+                # RecordFile.box_number.ilike(like),
             )
         )
 
@@ -340,40 +348,64 @@ def _build_record_file_query_from_request(req: "Request"):
         q = q.filter(RecordFile.box_number.ilike(like))
 
     # =========================================
-    # 3) MINI-QUERIES POR NOMBRE EN RELACIONES
+    # 3) FILTROS POR RELACIONES (ID tiene prioridad sobre nombre)
     # =========================================
-    if fund_name_param:
+    if fund_id_param:
+        q = q.filter(RecordFile.fund_id == fund_id_param)
+
+    if section_id_param:
+        q = q.filter(RecordFile.section_id == section_id_param)
+
+    if series_id_param:
+        q = q.filter(RecordFile.series_id == series_id_param)
+
+    if location_id_param:
+        q = q.filter(RecordFile.location_id == location_id_param)
+
+    if deterioration_id_param:
+        q = q.filter(RecordFile.deterioration_status_id == deterioration_id_param)
+
+    if typology_id_param:
+        q = q.join(
+        RecordFileTypology,
+        and_(
+            RecordFileTypology.record_file_id == RecordFile.id,
+            RecordFileTypology.deleted_at.is_(None),
+        ),
+    ).filter(RecordFileTypology.typology_id == typology_id_param)
+    
+    if fund_name_param and not fund_id_param:
         like = f"%{fund_name_param}%"
         q = q.join(Fund, Fund.id == RecordFile.fund_id).filter(
             or_(Fund.name.ilike(like), Fund.acronym.ilike(like))
         )
 
-    if section_name_param:
+    if section_name_param and not section_id_param:
         like = f"%{section_name_param}%"
         q = q.join(Section, Section.id == RecordFile.section_id).filter(
             or_(Section.name.ilike(like), Section.acronym.ilike(like))
         )
 
-    if series_name_param:
+    if series_name_param and not series_id_param:
         like = f"%{series_name_param}%"
         q = q.join(Series, Series.id == RecordFile.series_id).filter(
             or_(Series.name.ilike(like), Series.acronym.ilike(like))
         )
 
-    if location_name_param:
+    if location_name_param and not location_id_param:
         like = f"%{location_name_param}%"
         q = q.join(Location, Location.id == RecordFile.location_id).filter(
             Location.name.ilike(like)
         )
 
-    if deterioration_name_param:
+    if deterioration_name_param and not deterioration_id_param:
         like = f"%{deterioration_name_param}%"
         q = q.join(
             Deterioration,
             Deterioration.id == RecordFile.deterioration_status_id,
         ).filter(Deterioration.name.ilike(like))
 
-    if typology_name_param:
+    if typology_name_param and not typology_id_param:
         like = f"%{typology_name_param}%"
         q = q.join(
             RecordFileTypology,
@@ -388,6 +420,7 @@ def _build_record_file_query_from_request(req: "Request"):
                 Typology.deleted_at.is_(None),
             ),
         ).filter(Typology.name.ilike(like))
+    
 
     # =========================
     # 4) CONFIDENCIALIDAD
@@ -422,6 +455,29 @@ def _build_record_file_query_from_request(req: "Request"):
 
     return q
 
+from sqlalchemy import func, cast, Integer
+
+def _generate_next_file_number(
+    *,
+    fund_id=None,
+    section_id=None,
+    series_id=None,
+    box_number=None,
+):
+    query = (
+        db.session.query(
+            func.max(cast(RecordFile.file_number, Integer))
+        )
+        .filter(RecordFile.deleted_at.is_(None))
+        .filter(RecordFile.fund_id == fund_id)
+        .filter(RecordFile.section_id == section_id)
+        .filter(RecordFile.series_id == series_id)
+        .filter(RecordFile.box_number == box_number)
+    )
+
+    max_number = query.scalar()
+
+    return str((max_number or 0) + 1)
 
 def _serialize_record_file(obj: RecordFile):
     """
@@ -988,11 +1044,11 @@ def build_cover_page(record_file):
     # Código de barras
     # -----------------------------
     c.setFont("Helvetica", 8)
-    from reportlab.graphics.barcode import code128
-    barcode_value = record_file.reference_code or f"EXP-{record_file.id}"
-    barcode = code128.Code128(barcode_value, barHeight=15 * mm, barWidth=0.4)
-    barcode.drawOn(c, 17 * mm, 15 * mm)
-    c.drawString(24 * mm, 12 * mm, barcode_value)
+    #from reportlab.graphics.barcode import code128
+    #barcode_value = record_file.reference_code or f"EXP-{record_file.id}"
+    #barcode = code128.Code128(barcode_value, barHeight=15 * mm, barWidth=0.4)
+    #barcode.drawOn(c, 17 * mm, 15 * mm)
+    #c.drawString(24 * mm, 12 * mm, barcode_value)
 
     # -----------------------------
     # Folio
