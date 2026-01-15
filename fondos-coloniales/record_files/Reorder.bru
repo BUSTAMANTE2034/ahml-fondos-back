@@ -5,13 +5,13 @@ meta {
 }
 
 put {
-  url: {{BACKEND_URL}}/record-files/reorder-by-file-date
+  url: {{BACKEND_URL}}/record-files/reorder-by-file-date?series_id=3
   body: json
   auth: inherit
 }
 
 params:query {
-  ~series_id: 3
+  series_id: 3
   ~fund_id: 1
   ~section_id: 
   ~box_number: 

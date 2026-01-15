@@ -33,6 +33,7 @@ from reportlab.platypus import (
     Spacer,
     Image,
 )
+
 from typing import Optional
 from reportlab.lib.utils import ImageReader
 from app.extensions import db
@@ -52,6 +53,7 @@ from flask import current_app
 from reportlab.platypus import Image, Spacer
 from reportlab.lib.units import cm
 REPORT_COLOR = colors.Color(115/255.0, 74/255.0, 31/255.0)  # #734A1F
+from app.models.box import Box
 
 
 def _validate_active_entity(entity, entity_name: str = "Entidad"):
@@ -107,13 +109,15 @@ def _apply_ordering(query, order_by_param: str):
     # ===========================================================
     # LIMPIAR Y EXTRAER NUMEROS DE box_number
     # ===========================================================
-    clean_box = func.trim(RecordFile.box_number)
-    digits_box = func.regexp_replace(clean_box, r'[^0-9]', '')  # solo números
+    query = query.outerjoin(Box, Box.id == RecordFile.box_id)
+
+    clean_box = func.trim(Box.box_number)
+    digits_box = func.regexp_replace(clean_box, r'[^0-9]', '')
 
     box_as_int = func.coalesce(
-        cast(func.nullif(digits_box, ""), Integer),
-        999999999
-    )
+    cast(func.nullif(digits_box, ""), Integer),
+    999999999
+)
 
     # ===========================================================
     # LIMPIAR Y EXTRAER NUMEROS DE file_number
@@ -345,7 +349,10 @@ para mantener compatibilidad con versiones anteriores.
 
     if box_number_param:
         like = f"%{box_number_param}%"
-        q = q.filter(RecordFile.box_number.ilike(like))
+        # q = q.filter(RecordFile.box_number.ilike(like))
+        q = q.join(Box, Box.id == RecordFile.box_id).filter(
+            Box.box_number.ilike(like)
+)
 
     # =========================================
     # 3) FILTROS POR RELACIONES (ID tiene prioridad sobre nombre)
@@ -462,7 +469,7 @@ def _generate_next_file_number(
     fund_id=None,
     section_id=None,
     series_id=None,
-    box_number=None,
+    box_id=None,
 ):
     query = (
         db.session.query(
@@ -472,7 +479,7 @@ def _generate_next_file_number(
         .filter(RecordFile.fund_id == fund_id)
         .filter(RecordFile.section_id == section_id)
         .filter(RecordFile.series_id == series_id)
-        .filter(RecordFile.box_number == box_number)
+        .filter(RecordFile.box_id == box_id)
     )
 
     max_number = query.scalar()
@@ -538,6 +545,24 @@ def _serialize_record_file(obj: RecordFile):
         if obj.series
         else None
     )
+    base["box"] = (
+        {
+            "id": obj.box.id,
+            "box_number": obj.box.box_number,
+            "description": obj.box.description,
+            "physical_location": (
+                {
+                    "id": obj.box.physical_location.id,
+                    "code": obj.box.physical_location.code,
+                    "description": obj.box.physical_location.description,
+                }
+                if obj.box.physical_location
+                else None
+            ),
+        }
+        if obj.box
+        else None
+    )
 
     base["location"] = (
         {
@@ -591,7 +616,7 @@ def _build_record_files_pdf(record_files):
 
     # encabezados de la tabla
     data = [
-        ["ID", "Código", "Asunto", "Fondo", "Sección",
+        ["ID", "Código","Caja", "Asunto", "Fondo", "Sección",
             "Ubicación", "Estado", "Fecha doc."]
     ]
 
@@ -599,6 +624,7 @@ def _build_record_files_pdf(record_files):
         data.append([
             rf.id,
             rf.reference_code or "",
+            rf.box.box_number if rf.box else "",
             rf.subject or "",
             rf.fund.name if rf.fund else "",
             rf.section.name if rf.section else "",
@@ -627,7 +653,7 @@ def _build_record_files_pdf(record_files):
 
 
 def _build_reference_code(fund=None, section=None, serie=None,
-                          box_number=None, file_number=None):
+                          box=None, file_number=None):
     """
     FUND-SECCION-SERIE-C.{box_number}-Exp.{file_number}
     usando acrónimos si existen.
@@ -642,8 +668,8 @@ def _build_reference_code(fund=None, section=None, serie=None,
 
     code = "-".join(parts)
 
-    if box_number:
-        code += f"-C.{box_number}"
+    if box:
+        code += f"-C.{box.box_number}"
     if file_number:
         code += f"-Exp.{file_number}"
 
@@ -972,7 +998,7 @@ def build_cover_page(record_file):
         record_file.page_count) if record_file.page_count is not None else ""
     localidad_txt = record_file.location.name if record_file.location else ""
     asunto_txt = record_file.subject or ""
-    caja_txt = record_file.box_number or ""
+    caja_txt = record_file.box.box_number if record_file.box else ""
 
     tipo_doc_txt = ",".join(
         rel.typology.name
@@ -986,8 +1012,14 @@ def build_cover_page(record_file):
     prev_code = record_file.previous_reference_code
 
     fondo_txt2, seccion_txt2, serie_txt2, box_txt2, exp_txt2 = parse_previous_reference_code(prev_code)
+    location_code = (
+    record_file.box.physical_location.code
+    if record_file.box and record_file.box.physical_location
+    else ""
+)
 
-    # -------------------------------
+    qr_url = f"http://localhost:5173/fondos/admin/1/physical_locations/{location_code}"
+        # -------------------------------
     # POSICIONES
     # -------------------------------
     c.drawString(43 * mm, 235.5 * mm, fondo_txt)
@@ -1047,8 +1079,40 @@ def build_cover_page(record_file):
     #from reportlab.graphics.barcode import code128
     #barcode_value = record_file.reference_code or f"EXP-{record_file.id}"
     #barcode = code128.Code128(barcode_value, barHeight=15 * mm, barWidth=0.4)
+    
+    
     #barcode.drawOn(c, 17 * mm, 15 * mm)
     #c.drawString(24 * mm, 12 * mm, barcode_value)
+    from reportlab.graphics.barcode import qr
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.shapes import Drawing
+    qr_widget = qr.QrCodeWidget(qr_url)
+    bounds = qr_widget.getBounds()
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+
+    size = 30 * mm  # 🔧 ajusta si lo quieres más grande / chico
+    d = Drawing(
+        size,
+        size,
+        transform=[size / width, 0, 0, size / height, 0, 0],
+    )
+    d.add(qr_widget)
+
+    # MISMA POSICIÓN DEL BARCODE ORIGINAL
+    renderPDF.draw(d, c, 20 * mm, 5 * mm)
+    
+    c.setFont("Helvetica", 7)
+
+    qr_text = ""
+    if record_file.box and record_file.box.physical_location:
+        qr_text = f"{record_file.box.box_number} – {record_file.box.physical_location.code}"
+
+    # Centrar el texto debajo del QR
+    text_x = 23 * mm
+    text_y = 7 * mm - 2 * mm  # separación debajo del QR
+
+    c.drawString(text_x, text_y, qr_text)
 
     # -----------------------------
     # Folio
@@ -1229,6 +1293,7 @@ def _build_record_files_excel(record_files):
         "Fondo",
         "Sección",
         "Serie",
+        "Caja",
         "Ubicación",
         "Disponibilidad",
         "Dato sensible",
@@ -1269,6 +1334,7 @@ def _build_record_files_excel(record_files):
             combine_acronym_name(rf.fund),
             combine_acronym_name(rf.section),
             combine_acronym_name(rf.series),
+            rf.box.box_number if rf.box else "",
             rf.location.name if rf.location else "",
             map_availability(rf.availability_status),
             map_sensitive(rf.sensitive_data),

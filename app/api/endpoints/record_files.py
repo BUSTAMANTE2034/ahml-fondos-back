@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 
 from flask import request, make_response
@@ -20,6 +21,7 @@ from app.schemas.record_file import (
     RecordFileUpdateSchema,
 )
 from app.utils.security import role_required
+from app.models.box import Box
 
 from app.services.record_file_services import (
     build_cover_page,
@@ -31,7 +33,7 @@ from app.services.record_file_services import (
     _build_record_files_pdf,
     _build_reference_code,
     _exists_record_file_with_number_global,
-    _sync_record_file_typologies,_build_record_file_query_for_export,timestamp_es,_build_record_files_excel,_generate_next_file_number
+    _sync_record_file_typologies, _build_record_file_query_for_export, timestamp_es, _build_record_files_excel, _generate_next_file_number
 )
 
 
@@ -44,7 +46,7 @@ api = Namespace(
 @api.route("")
 class RecordFileList(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         """
         Obtiene una lista paginada de expedientes documentales no eliminados lógicamente.
@@ -68,15 +70,15 @@ class RecordFileList(Resource):
                 Término de búsqueda libre. Coincidencia parcial sobre:
                     * reference_code
                     * file_number
-                    * box_number
+                    *  box (derivado de la caja física, Box.box_number)
 
         Mini-queries por campo:
             - reference_code (str, opcional):
                 Coincidencia parcial sobre `RecordFile.reference_code`.
             - file_number (str, opcional):
                 Coincidencia parcial sobre `RecordFile.file_number`.
-            - box_number (str, opcional):
-                Coincidencia parcial sobre `RecordFile.box_number`.
+            - box_number (derivado de la caja) (str, opcional):
+                Filtro por caja física (`Box.id`)
             - fund_name (str, opcional):
                 Coincidencia parcial sobre `Fund.name` o `Fund.acronym`.
             - section_name (str, opcional):
@@ -138,7 +140,8 @@ class RecordFileList(Resource):
 
         # --- Construcción del query con TODOS los filtros soportados ---
         query = _build_record_file_query_from_request(request)
-        paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+        paginated = query.paginate(
+            page=page, per_page=per_page, error_out=False)
         items = paginated.items
 
         return {
@@ -157,7 +160,7 @@ class RecordFileList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def post(self):
         """
         Represents a documentary record file (expediente) in the AHML Fondos system.
@@ -251,19 +254,36 @@ class RecordFileList(Resource):
         #     }, 400
 
         # construir reference_code (función que ya tienes en otro lado)
-        
+
         file_number = _generate_next_file_number(
-    fund_id=fund_id,
-    section_id=section_id,
-    series_id=series_id,
-    box_number=data.get("box_number"),
-)
-        
+            fund_id=fund_id,
+            section_id=section_id,
+            series_id=series_id,
+            box_id=data.get("box_id"),
+        )
+        VALID_AVAILABILITY = {"available", "unavailable", "under_review", "on_loan"}
+
+        status = data.get("availability_status", "available")
+        if status not in VALID_AVAILABILITY:
+            return {
+                "message": "Estado de disponibilidad inválido.",
+                "availability_status": status,
+            }, 400
+
+        box = None
+        box_id = data.get("box_id")
+        if box_id:
+            box = Box.query.get(box_id)
+            if not box or box.deleted_at is not None:
+                return {"message": "La caja no existe o está eliminada."}, 400
+            if not box.is_active:
+                return {"message": "La caja está inactiva."}, 400
+
         ref_code = _build_reference_code(
             fund=fund,
             section=section,
             serie=serie,
-            box_number=data.get("box_number"),
+            box=box,
             file_number=file_number,
         )
 
@@ -279,7 +299,7 @@ class RecordFileList(Resource):
             section_id=section_id,
             series_id=series_id,
             location_id=location_id,
-            box_number=data.get("box_number"),
+            box_id=data.get("box_id"),
             page_count=data.get("page_count"),
             document_sizes=data.get("document_sizes"),
             file_date=data.get("file_date"),
@@ -308,7 +328,7 @@ class RecordFileList(Resource):
 @api.route("/<int:record_file_id>")
 class RecordFileDetail(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self, record_file_id: int):
         """
         Obtiene un expediente específico por su identificador.
@@ -392,7 +412,8 @@ class RecordFileDetail(Resource):
         # SECCIÓN
         # -----------------------------
         if "section_id" in data and data["section_id"] != rf.section_id:
-            section = Section.query.get(data["section_id"]) if data["section_id"] else None
+            section = Section.query.get(
+                data["section_id"]) if data["section_id"] else None
             err = _validate_active_entity(section, "Sección")
             if err:
                 return {"message": err}, 400
@@ -405,7 +426,8 @@ class RecordFileDetail(Resource):
         # SERIE
         # -----------------------------
         if "series_id" in data and data["series_id"] != rf.series_id:
-            serie = Series.query.get(data["series_id"]) if data["series_id"] else None
+            serie = Series.query.get(
+                data["series_id"]) if data["series_id"] else None
             err = _validate_active_entity(serie, "Serie")
             if err:
                 return {"message": err}, 400
@@ -417,8 +439,15 @@ class RecordFileDetail(Resource):
         # -----------------------------
         # CAJA
         # -----------------------------
-        if "box_number" in data and data["box_number"] != rf.box_number:
-            rf.box_number = data["box_number"]
+        if "box_id" in data and data["box_id"] != rf.box_id:
+            box = Box.query.get(data["box_id"]) if data["box_id"] else None
+            if box:
+                if box.deleted_at is not None:
+                    return {"message": "La caja no existe o está eliminada."}, 400
+                if not box.is_active:
+                    return {"message": "La caja está inactiva."}, 400
+
+            rf.box_id = data["box_id"]
             rebuild_code = True
             group_changed = True
 
@@ -426,7 +455,8 @@ class RecordFileDetail(Resource):
         # UBICACIÓN
         # -----------------------------
         if "location_id" in data and data["location_id"] != rf.location_id:
-            loc = Location.query.get(data["location_id"]) if data["location_id"] else None
+            loc = Location.query.get(
+                data["location_id"]) if data["location_id"] else None
             err = _validate_active_entity(loc, "Ubicación")
             if err:
                 return {"message": err}, 400
@@ -437,7 +467,8 @@ class RecordFileDetail(Resource):
         # DETERIORO
         # -----------------------------
         if "deterioration_status_id" in data and data["deterioration_status_id"] != rf.deterioration_status_id:
-            det = Deterioration.query.get(data["deterioration_status_id"]) if data["deterioration_status_id"] else None
+            det = Deterioration.query.get(
+                data["deterioration_status_id"]) if data["deterioration_status_id"] else None
             if det and det.deleted_at is not None:
                 return {
                     "message": "El deterioro especificado no existe o está eliminado."
@@ -472,7 +503,7 @@ class RecordFileDetail(Resource):
                 fund_id=rf.fund_id,
                 section_id=rf.section_id,
                 series_id=rf.series_id,
-                box_number=rf.box_number,
+                box_id=rf.box_id,
             )
 
         # -----------------------------
@@ -489,7 +520,7 @@ class RecordFileDetail(Resource):
                 fund=fund,
                 section=section,
                 serie=serie,
-                box_number=rf.box_number,
+                box=rf.box,
                 file_number=rf.file_number,
             )
 
@@ -517,7 +548,7 @@ class RecordFileDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def delete(self, record_file_id: int):
         """
         Realiza un borrado lógico del expediente.
@@ -537,7 +568,7 @@ class RecordFileDetail(Resource):
 @api.route("/export-pdf")
 class RecordFileExportPDF(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         # reutilizamos TODOS los filtros del get normal
         query = _build_record_file_query_from_request(request)
@@ -557,10 +588,11 @@ class RecordFileExportPDF(Resource):
         )
         return resp
 
+
 @api.route("/print-cover-page")
 class RecordFilePrintCoverPage(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         """
         Genera la carátula (cover page) en PDF para un expediente.
@@ -591,11 +623,12 @@ class RecordFilePrintCoverPage(Resource):
             filename=f"caratula_expediente_{rf.id}.pdf",
         )
         return resp
-    
+
+
 @api.route("/export-excel")
 class RecordFileExportExcel(Resource):
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def get(self):
 
         # ✔ construir query usando filtros del request
@@ -623,12 +656,12 @@ class RecordFileExportExcel(Resource):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         resp.headers.set(
-    "Content-Disposition",
-    f'attachment; filename="reporte_expedientes({fecha_str}).xlsx"'
-)
+            "Content-Disposition",
+            f'attachment; filename="reporte_expedientes({fecha_str}).xlsx"'
+        )
         return resp
-   
-from collections import defaultdict  
+
+
 @api.route("/reorder-by-file-date")
 class RecordFileReorderByDate(Resource):
 
@@ -650,7 +683,7 @@ class RecordFileReorderByDate(Resource):
         fund_id = request.args.get("fund_id", type=int)
         section_id = request.args.get("section_id", type=int)
         series_id = request.args.get("series_id", type=int)
-        box_number = request.args.get("box_number", type=int)
+        box_id = request.args.get("box_id", type=int)
 
         # -----------------------------
         # CONSTRUIR QUERY BASE
@@ -660,7 +693,7 @@ class RecordFileReorderByDate(Resource):
         )
 
         # filtros dinámicos (solo si vienen)
-        if fund_id :
+        if fund_id:
             query = query.filter(RecordFile.fund_id == fund_id)
 
         if section_id:
@@ -669,8 +702,8 @@ class RecordFileReorderByDate(Resource):
         if series_id is not None:
             query = query.filter(RecordFile.series_id == series_id)
 
-        if box_number is not None:
-            query = query.filter(RecordFile.box_number == box_number)
+        if box_id is not None:
+            query = query.filter(RecordFile.box_id == box_id)
 
         # -----------------------------
         # OBTENER EXPEDIENTES
@@ -679,7 +712,7 @@ class RecordFileReorderByDate(Resource):
             RecordFile.fund_id,
             RecordFile.section_id,
             RecordFile.series_id,
-            RecordFile.box_number,
+            RecordFile.box_id,
             RecordFile.file_date.is_(None),  # NULLs al final
             RecordFile.file_date,
             RecordFile.created_at,
@@ -698,7 +731,7 @@ class RecordFileReorderByDate(Resource):
                 rf.fund_id,
                 rf.section_id,
                 rf.series_id,
-                rf.box_number,
+                rf.box_id,
             )
             grouped[key].append(rf)
 
@@ -727,7 +760,7 @@ class RecordFileReorderByDate(Resource):
                         fund=rf.fund,
                         section=rf.section,
                         serie=rf.series,
-                        box_number=rf.box_number,
+                        box=rf.box,
                         file_number=new_file_number,
                     )
 

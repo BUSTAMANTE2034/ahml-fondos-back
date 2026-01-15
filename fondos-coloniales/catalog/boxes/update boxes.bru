@@ -1,0 +1,18 @@
+meta {
+  name: update boxes
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BACKEND_URL}}/boxes/3
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Cueramaro2,Gto"
+  }
+  
+}
