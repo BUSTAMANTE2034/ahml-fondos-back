@@ -262,3 +262,81 @@ class PhysicalLocationLabel(Resource):
         )
 
         return resp
+
+
+@api.route("/<string:code>/detail")
+class PhysicalLocationDetailWithBoxes(Resource):
+
+    # @login_required
+    # @role_required("admin", "manager", "archivist")
+    def get(self, code: str):
+        """
+        Obtiene una estantería por código y todas sus cajas asociadas,
+        incluyendo expedientes y sus códigos de clasificación archivística.
+        """
+
+        location = PhysicalLocation.query.filter(
+            PhysicalLocation.code == code,
+            PhysicalLocation.deleted_at.is_(None),
+        ).first()
+
+        if not location:
+            return {"message": "Ubicación física no encontrada."}, 404
+
+        boxes = (
+            Box.query
+            .filter(
+                Box.physical_location_id == location.id,
+                Box.deleted_at.is_(None),
+            )
+            .order_by(Box.box_number)
+            .all()
+        )
+
+        boxes_data = []
+
+        for box in boxes:
+            record_files = (
+                box.record_files
+                if hasattr(box, "record_files")
+                else []
+            )
+
+            # 🔹 total de expedientes
+            total_files = len(record_files)
+
+            # 🔹 códigos archivísticos desde reference_code
+            classification_codes = sorted(
+                {
+                    rf.reference_code
+                    for rf in record_files
+                    if rf.reference_code
+                }
+            )
+
+            boxes_data.append({
+                "id": box.id,
+                "box_number": box.box_number,
+                "description": box.description,
+                "total_record_files": total_files,
+                "classification_codes": classification_codes,
+            })
+
+        response = {
+            "message": "Detalle de estantería obtenido correctamente.",
+            "physical_location": {
+                "id": location.id,
+                "code": location.code,
+                "description": location.description,
+                "is_active": location.is_active,
+            },
+            "boxes": boxes_data,
+            "summary": {
+                "total_boxes": len(boxes_data),
+                "total_record_files": sum(
+                    b["total_record_files"] for b in boxes_data
+                ),
+            },
+        }
+
+        return response, 200
