@@ -21,7 +21,7 @@ def build_physical_location_label_pdf(physical_location):
     qr_url = (
         # f"http://localhost:5173/"
         f"http://189.195.96.226/"
-        f"fondos/admin/1/physical_locations/{code}"
+        f"fondos/physical_locations/{code}"
     )
 
     # =============================
