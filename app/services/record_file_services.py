@@ -1018,7 +1018,8 @@ def build_cover_page(record_file):
     else ""
 )
 
-    qr_url = f"http://localhost:5173/fondos/admin/1/physical_locations/{location_code}"
+    # qr_url = f"http://localhost:5173/fondos/admin/1/physical_locations/{location_code}"
+    qr_url = f"http://189.195.96.226/fondos/admin/1/physical_locations/{location_code}"
         # -------------------------------
     # POSICIONES
     # -------------------------------

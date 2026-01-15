@@ -15,6 +15,8 @@ from app.schemas.physical_location import (
     PhysicalLocationUpdateSchema,
 )
 from app.utils.security import role_required
+from flask import make_response
+from app.services.physical_location_services import build_physical_location_label_pdf
 
 api = Namespace("physical_locations", description="Gestión de ubicaciones físicas generales")
 
@@ -232,3 +234,31 @@ class PhysicalLocationDetail(Resource):
         db.session.commit()
 
         return {"message": "Ubicación física eliminada correctamente."}, 200
+    
+    
+@api.route("/<string:code>/label")
+class PhysicalLocationLabel(Resource):
+
+    @login_required
+    @role_required("admin", "manager", "archivist")
+    def get(self, code: str):
+
+        location = PhysicalLocation.query.filter_by(
+            code=code,
+            deleted_at=None
+        ).first()
+
+        if not location:
+            return {"message": "Ubicación no encontrada."}, 404
+
+        pdf_buffer = build_physical_location_label_pdf(location)
+
+        resp = make_response(pdf_buffer.read())
+        resp.headers.set("Content-Type", "application/pdf")
+        resp.headers.set(
+            "Content-Disposition",
+            "attachment",
+            filename=f"etiqueta_{code}.pdf",
+        )
+
+        return resp

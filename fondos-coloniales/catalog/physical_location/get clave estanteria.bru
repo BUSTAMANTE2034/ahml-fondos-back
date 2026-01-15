@@ -1,0 +1,11 @@
+meta {
+  name: get clave estanteria
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BACKEND_URL}}/physical_locations/RACK-A3/qr
+  body: none
+  auth: inherit
+}
