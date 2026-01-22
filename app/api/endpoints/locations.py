@@ -15,10 +15,46 @@ from app.schemas.location import (
     LocationResponseSchema,
 )
 from app.utils.security import role_required
+from sqlalchemy import asc, desc
 
 api = Namespace("locations", description="Operaciones de gestión de ubicaciones físicas")
 
+def _apply_location_ordering(query, order_by_param: str):
+    """
+    Aplica ordenamiento al query de Location.
 
+    order_by soportado:
+        - name_asc / name_desc
+        - updated_at_asc / updated_at_desc
+    """
+
+    # -----------------------------
+    # Orden por defecto
+    # -----------------------------
+    if not order_by_param:
+        return query.order_by(
+            Location.is_active.desc(),
+            Location.updated_at.desc(),
+        )
+
+    mapping = {
+        "name_asc": Location.name.asc(),
+        "name_desc": Location.name.desc(),
+
+        "updated_at_asc": Location.updated_at.asc(),
+        "updated_at_desc": Location.updated_at.desc(),
+    }
+
+    sort_expr = mapping.get(order_by_param)
+
+    # Fallback seguro
+    if sort_expr is None:
+        return query.order_by(
+            Location.is_active.desc(),
+            Location.updated_at.desc(),
+        )
+
+    return query.order_by(sort_expr)
 @api.route("")
 class LocationList(Resource):
     @login_required
@@ -43,6 +79,7 @@ class LocationList(Resource):
         user_id_param = request.args.get("user_id")
         is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
+        order_by_param = request.args.get("order_by")
 
         try:
             page = int(request.args.get("page", 1))
@@ -81,11 +118,7 @@ class LocationList(Resource):
             )
 
         # orden como el resto de módulos
-        from sqlalchemy import desc
-        query = query.order_by(
-            desc(Location.is_active),
-            desc(Location.updated_at)
-        )
+        query = _apply_location_ordering(query, order_by_param)
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
