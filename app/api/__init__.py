@@ -24,6 +24,8 @@ from app.api.endpoints.movements import api as movements
 from app.api.endpoints.loans import api as loans
 from app.api.endpoints.boxes import api as boxes
 from app.api.endpoints.physical_locations import api as physical_locations
+from app.api.endpoints.diagnosis_catalogs import api as diagnosis_catalog
+from app.api.endpoints.records_diagnosis import api as record_diagnosis
 
 # Crear instancia principal de API y Blueprint
 api_blueprint = Blueprint("api", __name__, url_prefix="/")
@@ -52,6 +54,8 @@ api.add_namespace(movements)
 api.add_namespace(loans)
 api.add_namespace(boxes)
 api.add_namespace(physical_locations)
+api.add_namespace(diagnosis_catalog)
+api.add_namespace(record_diagnosis)
 
 
 # Función para registrar el blueprint en la aplicación Flask

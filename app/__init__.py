@@ -91,7 +91,7 @@ def create_app() -> Flask:
 
     # Database setup and default superadmin creation
     # with app.app_context():
-    #     db.create_all()
+    #     # db.create_all()
     #     create_superadmin()
 
     return app
