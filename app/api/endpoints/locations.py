@@ -54,7 +54,10 @@ def _apply_location_ordering(query, order_by_param: str):
             Location.updated_at.desc(),
         )
 
-    return query.order_by(sort_expr)
+    return query.order_by(
+    Location.is_active.desc(),
+    sort_expr
+)
 @api.route("")
 class LocationList(Resource):
     @login_required

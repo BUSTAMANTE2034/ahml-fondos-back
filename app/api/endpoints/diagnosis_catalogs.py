@@ -20,12 +20,67 @@ from app.schemas.diagnosis_catalog import (
     DiagnosisCatalogResponseSchema,
 )
 from app.utils.security import role_required
-
+from sqlalchemy import desc
 api = Namespace(
     "diagnosis_catalog",
     description="Operaciones de gestión del catálogo de diagnóstico",
 )
 
+
+def _apply_diagnosis_catalog_ordering(query, order_by_param: str):
+    """
+    Aplica ordenamiento al query de DiagnosisCatalog.
+
+    order_by soportado:
+        - concept_asc / concept_desc
+        - detail_asc / detail_desc
+        - description_asc / description_desc
+        - created_at_asc / created_at_desc
+        - updated_at_asc / updated_at_desc
+    """
+
+    # -----------------------------
+    # Orden por defecto
+    # -----------------------------
+    if not order_by_param:
+        return query.order_by(
+            DiagnosisCatalog.is_active.desc(),
+            DiagnosisCatalog.updated_at.desc(),
+        )
+
+    mapping = {
+        # Texto
+        "concept_asc": DiagnosisCatalog.concept.asc(),
+        "concept_desc": DiagnosisCatalog.concept.desc(),
+
+        "detail_asc": DiagnosisCatalog.detail.asc(),
+        "detail_desc": DiagnosisCatalog.detail.desc(),
+
+        "description_asc": DiagnosisCatalog.description.asc(),
+        "description_desc": DiagnosisCatalog.description.desc(),
+
+        # Fechas
+        "created_at_asc": DiagnosisCatalog.created_at.asc(),
+        "created_at_desc": DiagnosisCatalog.created_at.desc(),
+
+        "updated_at_asc": DiagnosisCatalog.updated_at.asc(),
+        "updated_at_desc": DiagnosisCatalog.updated_at.desc(),
+    }
+
+    sort_expr = mapping.get(order_by_param)
+
+    # Fallback seguro
+    if sort_expr is None:
+        return query.order_by(
+            DiagnosisCatalog.is_active.desc(),
+            DiagnosisCatalog.updated_at.desc(),
+        )
+
+    # Activos primero + orden solicitado
+    return query.order_by(
+        DiagnosisCatalog.is_active.desc(),
+        sort_expr
+    )
 
 @api.route("")
 class DiagnosisCatalogList(Resource):
@@ -41,6 +96,7 @@ class DiagnosisCatalogList(Resource):
         detail_param = request.args.get("detail", "").strip()
         is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
+        order_by_param = request.args.get("order_by")
 
         try:
             page = int(request.args.get("page", 1))
@@ -79,11 +135,7 @@ class DiagnosisCatalogList(Resource):
                 )
             )
 
-        from sqlalchemy import desc
-        query = query.order_by(
-            desc(DiagnosisCatalog.is_active),
-            desc(DiagnosisCatalog.updated_at),
-        )
+        query = _apply_diagnosis_catalog_ordering(query, order_by_param)
 
         paginated = query.paginate(
             page=page, per_page=per_page, error_out=False
