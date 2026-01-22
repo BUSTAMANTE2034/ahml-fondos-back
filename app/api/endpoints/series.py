@@ -18,7 +18,7 @@ from app.schemas.series import (
     SeriesResponseSchema,
 )
 from app.utils.security import role_required
-
+from sqlalchemy import asc, desc
 api = Namespace("series", description="Operaciones de gestión de series documentales")
 
 
@@ -35,6 +35,54 @@ def _parse_date(date_str: str):
 
     return None
 
+def _apply_series_ordering(query, order_by_param: str):
+    """
+    Aplica ordenamiento al query de Series.
+
+    order_by soportado:
+        - created_at_asc / created_at_desc
+        - updated_at_asc / updated_at_desc
+        - start_date_asc / start_date_desc
+        - end_date_asc / end_date_desc
+        - name_asc / name_desc
+        - acronym_asc / acronym_desc
+    """
+
+    # -----------------------------
+    # Orden por defecto
+    # -----------------------------
+    if not order_by_param:
+        return query.order_by(Series.updated_at.desc())
+
+    mapping = {
+        # Fechas
+        "created_at_asc": Series.created_at.asc(),
+        "created_at_desc": Series.created_at.desc(),
+
+        "updated_at_asc": Series.updated_at.asc(),
+        "updated_at_desc": Series.updated_at.desc(),
+
+        "start_date_asc": Series.start_date.asc(),
+        "start_date_desc": Series.start_date.desc(),
+
+        "end_date_asc": Series.end_date.asc(),
+        "end_date_desc": Series.end_date.desc(),
+
+        # Texto
+        "name_asc": Series.name.asc(),
+        "name_desc": Series.name.desc(),
+
+        "acronym_asc": Series.acronym.asc(),
+        "acronym_desc": Series.acronym.desc(),
+    }
+
+    sort_expr = mapping.get(order_by_param)
+
+    # Fallback seguro
+    if sort_expr is None:
+        return query.order_by(Series.updated_at.desc())
+
+    return query.order_by(sort_expr)
 
 @api.route("")
 class SeriesList(Resource):
@@ -49,6 +97,7 @@ class SeriesList(Resource):
         query_param = request.args.get("query", "").strip()
         start_date_param = request.args.get("start_date")
         end_date_param = request.args.get("end_date")
+        order_by_param = request.args.get("order_by")
 
         try:
             page = int(request.args.get("page", 1))
@@ -132,11 +181,8 @@ class SeriesList(Resource):
             )
 
         # orden
-        from sqlalchemy import desc
-        query = query.order_by(
-            desc(Series.is_active),
-            desc(Series.updated_at)
-        )
+        query = _apply_series_ordering(query, order_by_param)
+        
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items

@@ -5,28 +5,107 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import current_app
+import threading
+
+import logging
+
+logger = logging.getLogger(__name__)
+# def send_email(to_email: str, to_name: str, subject: str, html_body: str):
+#     mail_server = current_app.config.get("MAIL_SERVER", "smtp.gmail.com")
+#     mail_port = current_app.config.get("MAIL_PORT", 465)
+#     mail_user = current_app.config.get("MAIL_USERNAME")
+#     mail_password = current_app.config.get("MAIL_PASSWORD")
+#     mail_from = current_app.config.get("MAIL_DEFAULT_SENDER", mail_user)
+#     mail_from_name = current_app.config.get("MAIL_DEFAULT_NAME", "Sistema AHML")
+
+#     msg = MIMEMultipart("alternative")
+#     msg["Subject"] = subject
+#     msg["From"] = f"{mail_from_name} <{mail_from}>"
+#     msg["To"] = f"{to_name} <{to_email}>"
+#     msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+#     context = ssl.create_default_context()
+#     with smtplib.SMTP_SSL(mail_server, mail_port, context=context) as server:
+#         server.login(mail_user, mail_password)
+#         server.sendmail(mail_from, to_email, msg.as_string())
+
+def send_email(
+    to_email: str,
+    to_name: str,
+    subject: str,
+    html_body: str,
+):
+    """
+    Envía correo vía SMTP.
+    Lanza excepción si falla (para logging/control).
+    """
+    try:
+        mail_server = current_app.config.get("MAIL_SERVER", "smtp.gmail.com")
+        mail_port = current_app.config.get("MAIL_PORT", 465)
+        mail_user = current_app.config.get("MAIL_USERNAME")
+        mail_password = current_app.config.get("MAIL_PASSWORD")
+        mail_from = current_app.config.get("MAIL_DEFAULT_SENDER", mail_user)
+        mail_from_name = current_app.config.get(
+            "MAIL_DEFAULT_NAME", "Sistema AHML"
+        )
+
+        if not mail_user or not mail_password:
+            raise RuntimeError("Credenciales de correo no configuradas")
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{mail_from_name} <{mail_from}>"
+        msg["To"] = f"{to_name} <{to_email}>"
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(
+            mail_server,
+            mail_port,
+            context=context,
+            timeout=10,   # evita colgar el request
+        ) as server:
+            server.login(mail_user, mail_password)
+            server.sendmail(mail_from, to_email, msg.as_string())
+
+        logger.info("Correo enviado correctamente a %s", to_email)
+
+    except Exception as e:
+        # LOG COMPLETO (stacktrace)
+        logger.exception("Error enviando correo a %s", to_email)
+        raise
 
 
-def send_email(to_email: str, to_name: str, subject: str, html_body: str):
-    mail_server = current_app.config.get("MAIL_SERVER", "smtp.gmail.com")
-    mail_port = current_app.config.get("MAIL_PORT", 465)
-    mail_user = current_app.config.get("MAIL_USERNAME")
-    mail_password = current_app.config.get("MAIL_PASSWORD")
-    mail_from = current_app.config.get("MAIL_DEFAULT_SENDER", mail_user)
-    mail_from_name = current_app.config.get("MAIL_DEFAULT_NAME", "Sistema AHML")
+# ==========================================================
+# ENVÍO ASÍNCRONO
+# ==========================================================
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{mail_from_name} <{mail_from}>"
-    msg["To"] = f"{to_name} <{to_email}>"
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+def send_email_async(*args, **kwargs):
+    """
+    Enviar correo en segundo plano con app context.
+    """
+    app = current_app._get_current_object()
 
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(mail_server, mail_port, context=context) as server:
-        server.login(mail_user, mail_password)
-        server.sendmail(mail_from, to_email, msg.as_string())
+    thread = threading.Thread(
+        target=_send_email_safe,
+        args=(app, *args),
+        kwargs=kwargs,
+        daemon=True,
+    )
+    thread.start()
 
+def _send_email_safe(app, *args, **kwargs):
+    """
+    Wrapper seguro con application context.
+    """
+    try:
+        with app.app_context():
+            send_email(*args, **kwargs)
+    except Exception:
+        # El error YA quedó logueado
+        pass
 
+    
 def send_temp_password_email(user, temp_password: str):
     subject = "Tu cuenta en AHML"
     name = user.first_name or user.email
@@ -39,7 +118,7 @@ def send_temp_password_email(user, temp_password: str):
     <p>Por seguridad, inicia sesión y cambia tu contraseña en tu primer acceso.</p>
     <p>--<br>Sistema AHML</p>
     """
-    send_email(user.email, name, subject, html)
+    send_email_async(user.email, name, subject, html)
 
 
 def send_password_updated_email(user, new_password: str):
@@ -55,7 +134,7 @@ def send_password_updated_email(user, new_password: str):
     <p>Por seguridad, inicia sesión y cambia la contraseña cuanto antes.</p>
     <p>--<br>Sistema AHML</p>
     """
-    send_email(user.email, name, subject, html)
+    send_email_async(user.email, name, subject, html)
 
 def send_recovered_password_email(user, temp_password: str):
     subject = "Restablecimiento de contraseña - AHML"
@@ -69,4 +148,4 @@ def send_recovered_password_email(user, temp_password: str):
     <p>Por seguridad, inicia sesión y cambia la contraseña de inmediato.</p>
     <p>--<br>Sistema AHML</p>
     """
-    send_email(user.email, name, subject, html)
+    send_email_async(user.email, name, subject, html)

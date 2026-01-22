@@ -20,7 +20,44 @@ from app.services.physical_location_services import build_physical_location_labe
 
 api = Namespace("physical_locations", description="Gestión de ubicaciones físicas generales")
 
+def _apply_physical_location_ordering(query, order_by_param: str):
+    """
+    Aplica ordenamiento al query de PhysicalLocation.
 
+    order_by soportado:
+        - created_at_asc / created_at_desc
+        - updated_at_asc / updated_at_desc
+        - code_asc / code_desc
+        - description_asc / description_desc
+    """
+
+    # Orden por defecto
+    if not order_by_param:
+        return query.order_by(PhysicalLocation.updated_at.desc())
+
+    mapping = {
+        # Fechas
+        "created_at_asc": PhysicalLocation.created_at.asc(),
+        "created_at_desc": PhysicalLocation.created_at.desc(),
+
+        "updated_at_asc": PhysicalLocation.updated_at.asc(),
+        "updated_at_desc": PhysicalLocation.updated_at.desc(),
+
+        # Texto
+        "code_asc": PhysicalLocation.code.asc(),
+        "code_desc": PhysicalLocation.code.desc(),
+
+        "description_asc": PhysicalLocation.description.asc(),
+        "description_desc": PhysicalLocation.description.desc(),
+    }
+
+    sort_expr = mapping.get(order_by_param)
+
+    # Fallback seguro
+    if sort_expr is None:
+        return query.order_by(PhysicalLocation.updated_at.desc())
+
+    return query.order_by(sort_expr)
 @api.route("")
 class PhysicalLocationList(Resource):
     @login_required
@@ -33,6 +70,7 @@ class PhysicalLocationList(Resource):
         code_param = request.args.get("code", "").strip()
         is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
+        order_by_param = request.args.get("order_by")
 
         try:
             page = int(request.args.get("page", 1))
@@ -64,11 +102,7 @@ class PhysicalLocationList(Resource):
             )
 
         # Orden
-        query = query.order_by(
-            desc(PhysicalLocation.is_active),
-            desc(PhysicalLocation.updated_at)
-        )
-
+        query = _apply_physical_location_ordering(query, order_by_param)
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items
 
