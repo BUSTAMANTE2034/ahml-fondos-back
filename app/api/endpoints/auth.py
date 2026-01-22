@@ -148,7 +148,7 @@ class RecoverPassword(Resource):
     """Permite a un admin regenerar la contraseña de un usuario."""
 
     @login_required
-    @role_required("admin")
+    @role_required("admin", "manager")
     def post(self):
         schema = RecoverPasswordSchema()
         try:

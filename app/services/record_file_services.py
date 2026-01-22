@@ -110,7 +110,13 @@ def _apply_ordering(query, order_by_param: str):
     # LIMPIAR Y EXTRAER NUMEROS DE box_number
     # ===========================================================
     query = query.outerjoin(Box, Box.id == RecordFile.box_id)
-
+    query = (
+    query
+    .outerjoin(Fund, Fund.id == RecordFile.fund_id)
+    .outerjoin(Section, Section.id == RecordFile.section_id)
+    .outerjoin(Series, Series.id == RecordFile.series_id)
+    .outerjoin(Location, Location.id == RecordFile.location_id)
+)
     clean_box = func.trim(Box.box_number)
     digits_box = func.regexp_replace(clean_box, r'[^0-9]', '')
 
@@ -154,6 +160,29 @@ def _apply_ordering(query, order_by_param: str):
 
         "file_number_asc": file_as_int.asc(),
         "file_number_desc": file_as_int.desc(),
+        
+        # =========================
+        # CAMPOS TEXTUALES
+        # =========================
+        "reference_code_asc": RecordFile.reference_code.asc(),
+        "reference_code_desc": RecordFile.reference_code.desc(),
+
+        "previous_reference_code_asc":
+            RecordFile.previous_reference_code.asc(),
+        "previous_reference_code_desc":
+            RecordFile.previous_reference_code.desc(),
+
+        "fund_name_asc": Fund.name.asc(),
+        "fund_name_desc": Fund.name.desc(),
+
+        "section_name_asc": Section.name.asc(),
+        "section_name_desc": Section.name.desc(),
+
+        "series_name_asc": Series.name.asc(),
+        "series_name_desc": Series.name.desc(),
+
+        "location_name_asc": Location.name.asc(),
+        "location_name_desc": Location.name.desc(),
     }
 
     sort_expr = mapping.get(order_by_param)
