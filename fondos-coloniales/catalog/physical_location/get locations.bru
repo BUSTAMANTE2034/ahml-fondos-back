@@ -1,0 +1,19 @@
+meta {
+  name: get locations
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BACKEND_URL}}/physical_locations
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~page: 
+  ~per_page: 
+  ~query: 
+  ~is_active: 
+  ~code: a1
+}

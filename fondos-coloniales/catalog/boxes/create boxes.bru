@@ -1,0 +1,20 @@
+meta {
+  name: create boxes
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BACKEND_URL}}/boxes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+   "box_number": "BX-001",
+      "physical_location_id": 2,
+      "description": "Caja de contratos 2024"
+  }
+  
+}

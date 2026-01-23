@@ -18,7 +18,44 @@ from app.utils.security import role_required
 
 api = Namespace("catalog-keys", description="Operaciones de gestión de claves de catálogo")
 
+def _apply_catalog_key_ordering(query, order_by_param: str):
+    """
+    Aplica ordenamiento al query de CatalogKey.
 
+    order_by soportado:
+        - created_at_asc / created_at_desc
+        - updated_at_asc / updated_at_desc
+        - name_asc / name_desc
+        - key_asc / key_desc
+    """
+
+    # Orden por defecto
+    if not order_by_param:
+        return query.order_by(CatalogKey.updated_at.desc())
+
+    mapping = {
+        # Fechas
+        "created_at_asc": CatalogKey.created_at.asc(),
+        "created_at_desc": CatalogKey.created_at.desc(),
+
+        "updated_at_asc": CatalogKey.updated_at.asc(),
+        "updated_at_desc": CatalogKey.updated_at.desc(),
+
+        # Texto
+        "name_asc": CatalogKey.name.asc(),
+        "name_desc": CatalogKey.name.desc(),
+
+        "key_asc": CatalogKey.key.asc(),
+        "key_desc": CatalogKey.key.desc(),
+    }
+
+    sort_expr = mapping.get(order_by_param)
+
+    # Fallback seguro
+    if sort_expr is None:
+        return query.order_by(CatalogKey.updated_at.desc())
+
+    return query.order_by(sort_expr)
 @api.route("")
 class CatalogKeyList(Resource):
     @login_required
@@ -48,6 +85,7 @@ class CatalogKeyList(Resource):
         entity_type_param = request.args.get("entity_type")
         user_id_param = request.args.get("user_id")
         query_param = request.args.get("query", "").strip()
+        order_by_param = request.args.get("order_by")
         
         try:
             page = int(request.args.get("page", 1))
@@ -93,12 +131,7 @@ class CatalogKeyList(Resource):
                 )
             )
 
-        from sqlalchemy import desc
-
-        query = query.order_by(
-    desc(CatalogKey.is_active),
-    desc(CatalogKey.updated_at)
-)
+        query = _apply_catalog_key_ordering(query, order_by_param)
 
         paginated = query.paginate(page=page, per_page=per_page, error_out=False)
         items = paginated.items

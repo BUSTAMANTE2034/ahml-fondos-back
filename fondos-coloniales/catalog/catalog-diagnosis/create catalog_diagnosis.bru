@@ -1,0 +1,11 @@
+meta {
+  name: create catalog_diagnosis
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BACKEND_URL}}/record_diagnosis
+  body: none
+  auth: inherit
+}

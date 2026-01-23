@@ -10,3 +10,8 @@ from app.models.record_file import RecordFile
 from app.models.record_file_typology import RecordFileTypology
 from app.models.movement import MovementHistory
 from app.models.loan import Loan
+from app.models.physical_location import PhysicalLocation
+from app.models.box import Box
+from app.models.diagnosis_catalog import DiagnosisCatalog
+from app.models.record_diagnosis import RecordDiagnosis
+from app.models.record_diagnosis_catalog import record_diagnosis_catalog

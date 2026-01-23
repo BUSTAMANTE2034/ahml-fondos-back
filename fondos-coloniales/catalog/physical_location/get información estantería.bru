@@ -1,0 +1,11 @@
+meta {
+  name: get información estantería.
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{BACKEND_URL}}/physical_locations/RACK-AA1/detail
+  body: none
+  auth: inherit
+}

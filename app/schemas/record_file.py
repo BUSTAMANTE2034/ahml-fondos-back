@@ -14,7 +14,7 @@ class RecordFileBaseSchema(Schema):
         required=True,
         validate=validate.Length(min=1, max=1500),
     )
-    file_number = fields.Str(validate=validate.Length(max=50))
+    file_number = fields.Str(dump_only=True)
 
     sensitive_data = fields.Bool(load_default=False)
     comments = fields.Str()
@@ -28,8 +28,11 @@ class RecordFileBaseSchema(Schema):
     section_id = fields.Int(allow_none=True)
     series_id = fields.Int(allow_none=True)
     location_id = fields.Int(allow_none=True)
+    
+    box_id = fields.Int(allow_none=True)
 
-    box_number = fields.Str(validate=validate.Length(max=50))
+    # LEGACY → SOLO LECTURA
+    box_number = fields.Str(dump_only=True)
     page_count = fields.Int(allow_none=True)
     document_sizes = fields.Str(
         allow_none=True,
@@ -61,7 +64,7 @@ class RecordFileUpdateSchema(Schema):
 
     subject = fields.Str(validate=validate.Length(min=1, max=1500))
     previous_reference_code = fields.Str(validate=validate.Length(max=255))
-    file_number = fields.Str(validate=validate.Length(max=50))
+    file_number = fields.Str(dump_only=True)
     sensitive_data = fields.Bool()
     comments = fields.Str()
     availability_status = fields.Str(
@@ -72,8 +75,8 @@ class RecordFileUpdateSchema(Schema):
     section_id = fields.Int(allow_none=True)
     series_id = fields.Int(allow_none=True)
     location_id = fields.Int(allow_none=True)
-
-    box_number = fields.Str(validate=validate.Length(max=50))
+    
+    box_id = fields.Int(allow_none=True)
     page_count = fields.Int(allow_none=True)
     document_sizes = fields.Str(
         allow_none=True,

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 
 from flask import request, make_response
@@ -20,6 +21,7 @@ from app.schemas.record_file import (
     RecordFileUpdateSchema,
 )
 from app.utils.security import role_required
+from app.models.box import Box
 
 from app.services.record_file_services import (
     build_cover_page,
@@ -31,7 +33,7 @@ from app.services.record_file_services import (
     _build_record_files_pdf,
     _build_reference_code,
     _exists_record_file_with_number_global,
-    _sync_record_file_typologies,_build_record_file_query_for_export,timestamp_es,_build_record_files_excel
+    _sync_record_file_typologies, _build_record_file_query_for_export, timestamp_es, _build_record_files_excel, _generate_next_file_number
 )
 
 
@@ -44,7 +46,7 @@ api = Namespace(
 @api.route("")
 class RecordFileList(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         """
         Obtiene una lista paginada de expedientes documentales no eliminados lógicamente.
@@ -68,15 +70,15 @@ class RecordFileList(Resource):
                 Término de búsqueda libre. Coincidencia parcial sobre:
                     * reference_code
                     * file_number
-                    * box_number
+                    *  box (derivado de la caja física, Box.box_number)
 
         Mini-queries por campo:
             - reference_code (str, opcional):
                 Coincidencia parcial sobre `RecordFile.reference_code`.
             - file_number (str, opcional):
                 Coincidencia parcial sobre `RecordFile.file_number`.
-            - box_number (str, opcional):
-                Coincidencia parcial sobre `RecordFile.box_number`.
+            - box_number (derivado de la caja) (str, opcional):
+                Filtro por caja física (`Box.id`)
             - fund_name (str, opcional):
                 Coincidencia parcial sobre `Fund.name` o `Fund.acronym`.
             - section_name (str, opcional):
@@ -138,7 +140,8 @@ class RecordFileList(Resource):
 
         # --- Construcción del query con TODOS los filtros soportados ---
         query = _build_record_file_query_from_request(request)
-        paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+        paginated = query.paginate(
+            page=page, per_page=per_page, error_out=False)
         items = paginated.items
 
         return {
@@ -157,7 +160,7 @@ class RecordFileList(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def post(self):
         """
         Represents a documentary record file (expediente) in the AHML Fondos system.
@@ -251,19 +254,44 @@ class RecordFileList(Resource):
         #     }, 400
 
         # construir reference_code (función que ya tienes en otro lado)
+
+        file_number = _generate_next_file_number(
+            fund_id=fund_id,
+            section_id=section_id,
+            series_id=series_id,
+            box_id=data.get("box_id"),
+        )
+        VALID_AVAILABILITY = {"available", "unavailable", "under_review", "on_loan"}
+
+        status = data.get("availability_status", "available")
+        if status not in VALID_AVAILABILITY:
+            return {
+                "message": "Estado de disponibilidad inválido.",
+                "availability_status": status,
+            }, 400
+
+        box = None
+        box_id = data.get("box_id")
+        if box_id:
+            box = Box.query.get(box_id)
+            if not box or box.deleted_at is not None:
+                return {"message": "La caja no existe o está eliminada."}, 400
+            if not box.is_active:
+                return {"message": "La caja está inactiva."}, 400
+
         ref_code = _build_reference_code(
             fund=fund,
             section=section,
             serie=serie,
-            box_number=data.get("box_number"),
-            file_number=data.get("file_number"),
+            box=box,
+            file_number=file_number,
         )
 
         rf = RecordFile(
             reference_code=ref_code,
             previous_reference_code=data.get("previous_reference_code"),
             subject=data["subject"],
-            file_number=data.get("file_number"),
+            file_number=file_number,
             sensitive_data=data.get("sensitive_data", False),
             comments=data.get("comments"),
             availability_status=data.get("availability_status", "available"),
@@ -271,7 +299,7 @@ class RecordFileList(Resource):
             section_id=section_id,
             series_id=series_id,
             location_id=location_id,
-            box_number=data.get("box_number"),
+            box_id=data.get("box_id"),
             page_count=data.get("page_count"),
             document_sizes=data.get("document_sizes"),
             file_date=data.get("file_date"),
@@ -300,7 +328,7 @@ class RecordFileList(Resource):
 @api.route("/<int:record_file_id>")
 class RecordFileDetail(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self, record_file_id: int):
         """
         Obtiene un expediente específico por su identificador.
@@ -315,39 +343,33 @@ class RecordFileDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def put(self, record_file_id: int):
         """
         Actualiza un expediente documental existente.
+        Si cambia el grupo (fondo, sección, serie o caja),
+        se recalcula automáticamente el file_number.
         """
 
         # -----------------------------
-        # VALIDACIÓN INICIAL DEL PAYLOAD
+        # VALIDACIÓN INICIAL
         # -----------------------------
         schema = RecordFileUpdateSchema()
         try:
             payload = request.get_json() or {}
             payload["id"] = record_file_id
-            payload.pop("reference_code", None)  # evitar manipulación
+            payload.pop("reference_code", None)
+            payload.pop("file_number", None)  # ⛔ NO se acepta
+
             data = schema.load(payload, partial=True)
 
-            typology_ids = data.get("typology_ids")
-            if typology_ids:
-                existing_ids = []
+            # validar tipologías
+            if "typology_ids" in data:
                 missing_ids = []
-
-                for tid in typology_ids:
-                    try:
-                        tid_int = int(tid)
-                    except (TypeError, ValueError):
-                        missing_ids.append(tid)
-                        continue
-
-                    typ = Typology.query.get(tid_int)
+                for tid in data["typology_ids"]:
+                    typ = Typology.query.get(tid)
                     if not typ or typ.deleted_at is not None:
-                        missing_ids.append(tid_int)
-                    else:
-                        existing_ids.append(tid_int)
+                        missing_ids.append(tid)
 
                 if missing_ids:
                     return {
@@ -365,112 +387,95 @@ class RecordFileDetail(Resource):
         if not rf or rf.deleted_at is not None:
             return {"message": "Expediente no encontrado."}, 404
 
-        # Guardamos valores actuales para posible rebuild
+        # valores actuales
         fund = rf.fund
         section = rf.section
         serie = rf.series
 
         rebuild_code = False
+        group_changed = False
 
         # -----------------------------
         # FONDO
         # -----------------------------
-        if "fund_id" in data:
-            fid = data["fund_id"]
-            current_fid = rf.fund_id
+        if "fund_id" in data and data["fund_id"] != rf.fund_id:
+            fund = Fund.query.get(data["fund_id"]) if data["fund_id"] else None
+            err = _validate_active_entity(fund, "Fondo")
+            if err:
+                return {"message": err}, 400
 
-            # Solo validamos si REALMENTE cambia el id
-            if fid != current_fid:
-                if fid is not None:
-                    fund = Fund.query.get(fid)
-                    err = _validate_active_entity(fund, "Fondo")
-                    if err:
-                        return {"message": err}, 400
-                else:
-                    fund = None
-
-                rf.fund_id = fid
-                rebuild_code = True
-            else:
-                # mismo fondo, no validamos ni tocamos rebuild_code
-                fund = rf.fund
+            rf.fund_id = data["fund_id"]
+            rebuild_code = True
+            group_changed = True
 
         # -----------------------------
         # SECCIÓN
         # -----------------------------
-        if "section_id" in data:
-            sid = data["section_id"]
-            current_sid = rf.section_id
+        if "section_id" in data and data["section_id"] != rf.section_id:
+            section = Section.query.get(
+                data["section_id"]) if data["section_id"] else None
+            err = _validate_active_entity(section, "Sección")
+            if err:
+                return {"message": err}, 400
 
-            if sid != current_sid:
-                if sid is not None:
-                    section = Section.query.get(sid)
-                    err = _validate_active_entity(section, "Sección")
-                    if err:
-                        return {"message": err}, 400
-                else:
-                    section = None
+            rf.section_id = data["section_id"]
+            rebuild_code = True
+            group_changed = True
 
-                rf.section_id = sid
-                rebuild_code = True
-            else:
-                section = rf.section
         # -----------------------------
         # SERIE
         # -----------------------------
-        if "series_id" in data:
-            seid = data["series_id"]
-            current_seid = rf.series_id
+        if "series_id" in data and data["series_id"] != rf.series_id:
+            serie = Series.query.get(
+                data["series_id"]) if data["series_id"] else None
+            err = _validate_active_entity(serie, "Serie")
+            if err:
+                return {"message": err}, 400
 
-            if seid != current_seid:
-                if seid is not None:
-                    serie = Series.query.get(seid)
-                    err = _validate_active_entity(serie, "Serie")
-                    if err:
-                        return {"message": err}, 400
-                else:
-                    serie = None
+            rf.series_id = data["series_id"]
+            rebuild_code = True
+            group_changed = True
 
-                rf.series_id = seid
-                rebuild_code = True
-            else:
-                serie = rf.series
+        # -----------------------------
+        # CAJA
+        # -----------------------------
+        if "box_id" in data and data["box_id"] != rf.box_id:
+            box = Box.query.get(data["box_id"]) if data["box_id"] else None
+            if box:
+                if box.deleted_at is not None:
+                    return {"message": "La caja no existe o está eliminada."}, 400
+                if not box.is_active:
+                    return {"message": "La caja está inactiva."}, 400
+
+            rf.box_id = data["box_id"]
+            rebuild_code = True
+            group_changed = True
 
         # -----------------------------
         # UBICACIÓN
         # -----------------------------
-        if "location_id" in data:
-            lid = data["location_id"]
-            current_lid = rf.location_id
+        if "location_id" in data and data["location_id"] != rf.location_id:
+            loc = Location.query.get(
+                data["location_id"]) if data["location_id"] else None
+            err = _validate_active_entity(loc, "Ubicación")
+            if err:
+                return {"message": err}, 400
 
-            if lid != current_lid:
-                if lid is not None:
-                    loc = Location.query.get(lid)
-                    err = _validate_active_entity(loc, "Ubicación")
-                    if err:
-                        return {"message": err}, 400
-
-                rf.location_id = lid
-            # si es el mismo id, no hacemos nada
+            rf.location_id = data["location_id"]
 
         # -----------------------------
         # DETERIORO
         # -----------------------------
-        if "deterioration_status_id" in data:
-            did = data["deterioration_status_id"]
-            old_did = rf.deterioration_status_id
+        if "deterioration_status_id" in data and data["deterioration_status_id"] != rf.deterioration_status_id:
+            det = Deterioration.query.get(
+                data["deterioration_status_id"]) if data["deterioration_status_id"] else None
+            if det and det.deleted_at is not None:
+                return {
+                    "message": "El deterioro especificado no existe o está eliminado."
+                }, 400
 
-            if did != old_did:
-                if did is not None:
-                    det = Deterioration.query.get(did)
-                    if not det or det.deleted_at is not None:
-                        return {
-                            "message": "El deterioro especificado no existe o está eliminado."
-                        }, 400
-
-                rf.deterioration_status_id = did
-                rf.deterioration_status_updated_at = db.func.now()
-            # si es el mismo id, no validamos ni tocamos la fecha
+            rf.deterioration_status_id = data["deterioration_status_id"]
+            rf.deterioration_status_updated_at = db.func.now()
 
         # -----------------------------
         # CAMPOS SIMPLES
@@ -491,45 +496,16 @@ class RecordFileDetail(Resource):
                 setattr(rf, field, data[field])
 
         # -----------------------------
-        # VALIDAR FILE_NUMBER (sin asignar)
+        # RECALCULAR FILE_NUMBER SI CAMBIÓ EL GRUPO
         # -----------------------------
-        new_box_number = rf.box_number
-        new_file_number = rf.file_number
+        if group_changed:
+            rf.file_number = _generate_next_file_number(
+                fund_id=rf.fund_id,
+                section_id=rf.section_id,
+                series_id=rf.series_id,
+                box_id=rf.box_id,
+            )
 
-        if "box_number" in data:
-            new_box_number = data["box_number"]
-            rebuild_code = True
-
-        if "file_number" in payload:
-            new_file_number = data["file_number"]
-            rebuild_code = True
-
-        # Validación correcta: permitir el mismo file_number en este expediente
-        if "file_number" in payload:
-            new_file_number = data["file_number"]
-
-            # solo validar si realmente lo cambiaron
-            # if new_file_number != rf.file_number:
-            #     exists_q = (
-            #         RecordFile.query
-            #         .filter(
-            #             RecordFile.deleted_at.is_(None),
-            #             RecordFile.file_number == new_file_number,
-            #             RecordFile.id != rf.id,
-            #         )
-            #         .first()
-            #     )
-            #     if exists_q:
-            #         return {
-            #             "message": "Ya existe otro expediente con ese número.",
-            #             "file_number": new_file_number,
-            #         }, 400
-
-            rf.file_number = new_file_number
-            rebuild_code = True
-
-        # SOLO después de validar, asignamos:
-        rf.box_number = new_box_number
         # -----------------------------
         # TIPOLÓGICAS
         # -----------------------------
@@ -537,28 +513,27 @@ class RecordFileDetail(Resource):
             _sync_record_file_typologies(rf, data["typology_ids"])
 
         # -----------------------------
-        # REGENERAR CÓDIGO SI CAMBIÓ ALGO
+        # REGENERAR CÓDIGO
         # -----------------------------
         if rebuild_code:
-            new_code = _build_reference_code(
+            rf.reference_code = _build_reference_code(
                 fund=fund,
                 section=section,
                 serie=serie,
-                box_number=rf.box_number,
+                box=rf.box,
                 file_number=rf.file_number,
             )
-            rf.reference_code = new_code
 
         # -----------------------------
-        # QUIÉN MODIFICÓ
+        # AUDITORÍA
         # -----------------------------
         rf.user_id = current_user.id if current_user.is_authenticated else rf.user_id
+        rf.updated_at = db.func.now()
 
         # -----------------------------
         # GUARDAR
         # -----------------------------
         try:
-            rf.updated_at = db.func.now()
             db.session.commit()
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -573,7 +548,7 @@ class RecordFileDetail(Resource):
         }, 200
 
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def delete(self, record_file_id: int):
         """
         Realiza un borrado lógico del expediente.
@@ -593,7 +568,7 @@ class RecordFileDetail(Resource):
 @api.route("/export-pdf")
 class RecordFileExportPDF(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         # reutilizamos TODOS los filtros del get normal
         query = _build_record_file_query_from_request(request)
@@ -613,10 +588,11 @@ class RecordFileExportPDF(Resource):
         )
         return resp
 
+
 @api.route("/print-cover-page")
 class RecordFilePrintCoverPage(Resource):
     @login_required
-    @role_required("admin", "manager","archivist","visitor")
+    @role_required("admin", "manager", "archivist", "visitor")
     def get(self):
         """
         Genera la carátula (cover page) en PDF para un expediente.
@@ -647,11 +623,12 @@ class RecordFilePrintCoverPage(Resource):
             filename=f"caratula_expediente_{rf.id}.pdf",
         )
         return resp
-    
+
+
 @api.route("/export-excel")
 class RecordFileExportExcel(Resource):
     @login_required
-    @role_required("admin", "manager","archivist")
+    @role_required("admin", "manager", "archivist")
     def get(self):
 
         # ✔ construir query usando filtros del request
@@ -679,8 +656,131 @@ class RecordFileExportExcel(Resource):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         resp.headers.set(
-    "Content-Disposition",
-    f'attachment; filename="reporte_expedientes({fecha_str}).xlsx"'
-)
+            "Content-Disposition",
+            f'attachment; filename="reporte_expedientes({fecha_str}).xlsx"'
+        )
         return resp
-   
+
+
+@api.route("/reorder-by-file-date")
+class RecordFileReorderByDate(Resource):
+
+    @login_required
+    @role_required("admin", "manager", "archivist")
+    def put(self):
+        """
+        Reordena los file_number de los expedientes
+        por fondo-sección-serie-caja usando file_date
+        (del más antiguo al más reciente).
+
+        Filtros opcionales por query params:
+        ?fund_id=&section_id=&series_id=&box_number=
+        """
+
+        # -----------------------------
+        # LEER QUERY PARAMS
+        # -----------------------------
+        fund_id = request.args.get("fund_id", type=int)
+        section_id = request.args.get("section_id", type=int)
+        series_id = request.args.get("series_id", type=int)
+        box_id = request.args.get("box_id", type=int)
+
+        # -----------------------------
+        # CONSTRUIR QUERY BASE
+        # -----------------------------
+        query = RecordFile.query.filter(
+            RecordFile.deleted_at.is_(None)
+        )
+
+        # filtros dinámicos (solo si vienen)
+        if fund_id:
+            query = query.filter(RecordFile.fund_id == fund_id)
+
+        if section_id:
+            query = query.filter(RecordFile.section_id == section_id)
+
+        if series_id is not None:
+            query = query.filter(RecordFile.series_id == series_id)
+
+        if box_id is not None:
+            query = query.filter(RecordFile.box_id == box_id)
+
+        # -----------------------------
+        # OBTENER EXPEDIENTES
+        # -----------------------------
+        record_files = query.order_by(
+            RecordFile.fund_id,
+            RecordFile.section_id,
+            RecordFile.series_id,
+            RecordFile.box_id,
+            RecordFile.file_date.is_(None),  # NULLs al final
+            RecordFile.file_date,
+            RecordFile.created_at,
+        ).all()
+
+        if not record_files:
+            return {"message": "No hay expedientes para reordenar."}, 200
+
+        # -----------------------------
+        # AGRUPAR POR (fondo, sección, serie, caja)
+        # -----------------------------
+        grouped = defaultdict(list)
+
+        for rf in record_files:
+            key = (
+                rf.fund_id,
+                rf.section_id,
+                rf.series_id,
+                rf.box_id,
+            )
+            grouped[key].append(rf)
+
+        # -----------------------------
+        # REORDENAR CADA GRUPO
+        # -----------------------------
+        updated_count = 0
+
+        for (_, _, _, _), files in grouped.items():
+
+            files.sort(
+                key=lambda r: (
+                    r.file_date is None,   # None al final
+                    r.file_date,
+                    r.created_at,
+                )
+            )
+
+            for idx, rf in enumerate(files, start=1):
+                new_file_number = str(idx)
+
+                if rf.file_number != new_file_number:
+                    rf.file_number = new_file_number
+
+                    rf.reference_code = _build_reference_code(
+                        fund=rf.fund,
+                        section=rf.section,
+                        serie=rf.series,
+                        box=rf.box,
+                        file_number=new_file_number,
+                    )
+
+                    rf.updated_at = db.func.now()
+                    rf.user_id = current_user.id
+                    updated_count += 1
+
+        # -----------------------------
+        # GUARDAR CAMBIOS
+        # -----------------------------
+        try:
+            db.session.commit()
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            return {
+                "message": "Error al reordenar expedientes.",
+                "error": str(e),
+            }, 500
+
+        return {
+            "message": "Expedientes reordenados correctamente.",
+            "updated_records": updated_count,
+        }, 200

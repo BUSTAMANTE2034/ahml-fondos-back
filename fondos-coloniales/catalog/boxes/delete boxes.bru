@@ -1,0 +1,11 @@
+meta {
+  name: delete boxes
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{BACKEND_URL}}/boxes/3
+  body: none
+  auth: inherit
+}

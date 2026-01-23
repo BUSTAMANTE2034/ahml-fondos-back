@@ -26,7 +26,7 @@ class RecordFile(db.Model):
         section_id (int): FK to section.id.
         series_id (int): FK to series.id.
         location_id (int): FK to location.id.
-        box_number (str): Physical box number.
+        box_id (int): FK to box.id.
         page_count (int): Total number of pages.
         file_date (date): Main document date.
         created_at (datetime): Creation timestamp.
@@ -92,7 +92,11 @@ class RecordFile(db.Model):
     )
 
     # datos físicos
-    box_number = db.Column(db.String(50), nullable=True)
+    box_id = db.Column(
+    db.Integer,
+    db.ForeignKey("box.id"),
+    nullable=True,
+)
     page_count = db.Column(db.Integer, nullable=True)
     document_sizes = db.Column(db.String(500), nullable=True)
 
@@ -132,6 +136,7 @@ class RecordFile(db.Model):
     location = db.relationship("Location", backref="record_files", lazy=True)
     user = db.relationship("User", backref="record_files", lazy=True)
     deterioration_status = db.relationship("Deterioration", backref="record_files", lazy=True)
+    box = db.relationship("Box", backref="record_files", lazy=True)
 
     def __repr__(self) -> str:
         return f"<RecordFile {self.id}: {self.reference_code} - {self.subject}>"
@@ -151,7 +156,7 @@ class RecordFile(db.Model):
             "section_id": self.section_id,
             "series_id": self.series_id,
             "location_id": self.location_id,
-            "box_number": self.box_number,
+            "box_id": self.box_id,
             "page_count": self.page_count,
             "document_sizes": self.document_sizes,
             "file_date": self.file_date,
@@ -163,3 +168,4 @@ class RecordFile(db.Model):
             "deterioration_status_id": self.deterioration_status_id,
             "deterioration_status_updated_at": self.deterioration_status_updated_at,
         }
+        

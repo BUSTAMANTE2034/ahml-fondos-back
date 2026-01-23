@@ -32,6 +32,7 @@ class DeteriorationList(Resource):
         user_id_param = request.args.get("user_id")
         is_active_param = request.args.get("is_active")
         query_param = request.args.get("query", "").strip()
+        
 
         try:
             page = int(request.args.get("page", 1))
