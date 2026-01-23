@@ -54,7 +54,7 @@ from reportlab.platypus import Image, Spacer
 from reportlab.lib.units import cm
 REPORT_COLOR = colors.Color(115/255.0, 74/255.0, 31/255.0)  # #734A1F
 from app.models.box import Box
-
+from typing import Optional
 
 def _validate_active_entity(entity, entity_name: str = "Entidad"):
     """
@@ -90,7 +90,7 @@ def _parse_date(date_str: str):
     return None
 
 
-def _apply_ordering(query, order_by_param: str):
+# def _apply_ordering(query, order_by_param: str):
     # -----------------------------
     # ORDEN LÓGICO POR DISPONIBILIDAD (solo si aplica)
     # -----------------------------
@@ -206,6 +206,145 @@ def _apply_ordering(query, order_by_param: str):
 
     # Caso normal → ordenar por disponibilidad primero
     return query.order_by(status_order, sort_expr)
+
+
+def _apply_ordering(query, order_by_param: Optional[str]):
+    """
+    Aplica ordenamiento dinámico múltiple.
+
+    Soporta:
+    - solo fechas
+    - solo datos
+    - combinaciones (en cualquier orden)
+
+    Ej:
+        order_by=series_name_asc,file_date_desc
+    """
+
+    # ===========================================================
+    # ORDEN LÓGICO POR DISPONIBILIDAD
+    # ===========================================================
+    status_order = case(
+        (RecordFile.availability_status == "available", 1),
+        (RecordFile.availability_status == "on_loan", 2),
+        (RecordFile.availability_status == "under_review", 3),
+        (RecordFile.availability_status == "unavailable", 4),
+        else_=99,
+    )
+
+    # ===========================================================
+    # JOINS NECESARIOS PARA ORDENAMIENTO
+    # ===========================================================
+    query = (
+        query
+        .outerjoin(Box, Box.id == RecordFile.box_id)
+        .outerjoin(Fund, Fund.id == RecordFile.fund_id)
+        .outerjoin(Section, Section.id == RecordFile.section_id)
+        .outerjoin(Series, Series.id == RecordFile.series_id)
+        .outerjoin(Location, Location.id == RecordFile.location_id)
+    )
+
+    # ===========================================================
+    # LIMPIEZA NUMÉRICA box_number
+    # ===========================================================
+    clean_box = func.trim(Box.box_number)
+    digits_box = func.regexp_replace(clean_box, r"[^0-9]", "")
+    box_as_int = func.coalesce(
+        cast(func.nullif(digits_box, ""), Integer),
+        999999999
+    )
+
+    # ===========================================================
+    # LIMPIEZA NUMÉRICA file_number
+    # ===========================================================
+    clean_file = func.trim(RecordFile.file_number)
+    digits_file = func.regexp_replace(clean_file, r"[^0-9]", "")
+    file_as_int = func.coalesce(
+        cast(func.nullif(digits_file, ""), Integer),
+        999999999
+    )
+
+    # ===========================================================
+    # MAPEO DE CAMPOS
+    # ===========================================================
+    mapping = {
+        # FECHAS
+        "created_at_asc": RecordFile.created_at.asc(),
+        "created_at_desc": RecordFile.created_at.desc(),
+
+        "updated_at_asc": RecordFile.updated_at.asc(),
+        "updated_at_desc": RecordFile.updated_at.desc(),
+
+        "file_date_asc": RecordFile.file_date.asc(),
+        "file_date_desc": RecordFile.file_date.desc(),
+
+        "deterioration_status_updated_at_asc":
+            RecordFile.deterioration_status_updated_at.asc(),
+        "deterioration_status_updated_at_desc":
+            RecordFile.deterioration_status_updated_at.desc(),
+
+        # NUMÉRICOS REALES
+        "box_number_asc": box_as_int.asc(),
+        "box_number_desc": box_as_int.desc(),
+
+        "file_number_asc": file_as_int.asc(),
+        "file_number_desc": file_as_int.desc(),
+
+        # TEXTUALES
+        "reference_code_asc": RecordFile.reference_code.asc(),
+        "reference_code_desc": RecordFile.reference_code.desc(),
+
+        "previous_reference_code_asc":
+            RecordFile.previous_reference_code.asc(),
+        "previous_reference_code_desc":
+            RecordFile.previous_reference_code.desc(),
+
+        "fund_name_asc": Fund.name.asc(),
+        "fund_name_desc": Fund.name.desc(),
+
+        "section_name_asc": Section.name.asc(),
+        "section_name_desc": Section.name.desc(),
+
+        "series_name_asc": Series.name.asc(),
+        "series_name_desc": Series.name.desc(),
+
+        "location_name_asc": Location.name.asc(),
+        "location_name_desc": Location.name.desc(),
+    }
+
+    # ===========================================================
+    # ARMAR ORDER BY DINÁMICO
+    # ===========================================================
+    order_clauses = []
+
+    if order_by_param:
+        for key in order_by_param.split(","):
+            key = key.strip()
+            expr = mapping.get(key)
+            if expr is not None:
+                order_clauses.append(expr)
+
+    # ===========================================================
+    # FALLBACK
+    # ===========================================================
+    if not order_clauses:
+        return query.order_by(status_order, RecordFile.updated_at.desc())
+
+    # ===========================================================
+    # SI ORDENA POR CAMPOS NUMÉRICOS → IGNORAR DISPONIBILIDAD
+    # ===========================================================
+    numeric_keys = {
+        "box_number_asc", "box_number_desc",
+        "file_number_asc", "file_number_desc",
+    }
+
+    if any(k in numeric_keys for k in order_by_param.split(",")):
+        return query.order_by(*order_clauses)
+
+    # ===========================================================
+    # CASO NORMAL → DISPONIBILIDAD + ORDENAMIENTO
+    # ===========================================================
+    return query.order_by(status_order, *order_clauses)
 
 
 def _build_record_file_query_from_request(req: "Request"):
