@@ -343,6 +343,7 @@ para mantener compatibilidad con versiones anteriores.
 
     # --- Ordenamiento ---
     order_by_param = req.args.get("order_by")
+    user_query_param = (req.args.get("user_query", "") or "").strip()
 
     # --- Query base: solo expedientes no eliminados ---
     q = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
@@ -382,6 +383,20 @@ para mantener compatibilidad con versiones anteriores.
         q = q.join(Box, Box.id == RecordFile.box_id).filter(
             Box.box_number.ilike(like)
 )
+    if user_query_param:
+        like = f"%{user_query_param}%"
+
+        q = q.join(
+            User,
+            User.id == RecordFile.user_id
+        ).filter(
+            or_(
+                User.employee_id.ilike(like),
+                User.email.ilike(like),
+                User.first_name.ilike(like),
+                User.last_name.ilike(like),
+            )
+        )
 
     # =========================================
     # 3) FILTROS POR RELACIONES (ID tiene prioridad sobre nombre)
