@@ -584,16 +584,19 @@ para mantener compatibilidad con versiones anteriores.
 
     if location_name_param and not location_id_param:
         like = f"%{location_name_param}%"
-        q = q.join(Location, Location.id == RecordFile.location_id).filter(
+        q = q.filter(
+        RecordFile.location.has(
             Location.name.ilike(like)
         )
+    )
 
     if deterioration_name_param and not deterioration_id_param:
         like = f"%{deterioration_name_param}%"
-        q = q.join(
-            Deterioration,
-            Deterioration.id == RecordFile.deterioration_status_id,
-        ).filter(Deterioration.name.ilike(like))
+        q = q.filter(
+    RecordFile.deterioration_status.has(
+        Deterioration.name.ilike(like)
+    )
+)
 
     if typology_name_param and not typology_id_param:
         like = f"%{typology_name_param}%"
@@ -1377,87 +1380,88 @@ def combine_acronym_name(obj):
 
 
 def _build_record_file_query_for_export(req):
-    query = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
+    return _build_record_file_query_from_request(req)
+    # query = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
 
-    # -----------------------------
-    # DISPONIBILIDAD
-    # -----------------------------
-    availability = req.args.get("availability_status")
-    if availability and availability != "all":
-        query = query.filter(RecordFile.availability_status == availability)
+    # # -----------------------------
+    # # DISPONIBILIDAD
+    # # -----------------------------
+    # availability = req.args.get("availability_status")
+    # if availability and availability != "all":
+    #     query = query.filter(RecordFile.availability_status == availability)
 
-    # -----------------------------
-    # FECHAS DOCUMENTALES
-    # -----------------------------
-    file_after = _parse_date(req.args.get("file_date_after"))
-    file_before = _parse_date(req.args.get("file_date_before"))
+    # # -----------------------------
+    # # FECHAS DOCUMENTALES
+    # # -----------------------------
+    # file_after = _parse_date(req.args.get("file_date_after"))
+    # file_before = _parse_date(req.args.get("file_date_before"))
 
-    if file_after:
-        query = query.filter(RecordFile.file_date >= file_after)
-    if file_before:
-        query = query.filter(RecordFile.file_date <= file_before)
+    # if file_after:
+    #     query = query.filter(RecordFile.file_date >= file_after)
+    # if file_before:
+    #     query = query.filter(RecordFile.file_date <= file_before)
 
-    # -----------------------------
-    # FECHA DE CREACIÓN
-    # -----------------------------
-    created_after = _parse_date(req.args.get("created_after"))
-    created_before = _parse_date(req.args.get("created_before"))
+    # # -----------------------------
+    # # FECHA DE CREACIÓN
+    # # -----------------------------
+    # created_after = _parse_date(req.args.get("created_after"))
+    # created_before = _parse_date(req.args.get("created_before"))
 
-    if created_after:
-        query = query.filter(RecordFile.created_at >= created_after)
-    if created_before:
-        query = query.filter(RecordFile.created_at <= created_before)
+    # if created_after:
+    #     query = query.filter(RecordFile.created_at >= created_after)
+    # if created_before:
+    #     query = query.filter(RecordFile.created_at <= created_before)
 
-    # -----------------------------
-    # FECHA DE ACTUALIZACIÓN
-    # -----------------------------
-    updated_after = _parse_date(req.args.get("updated_after"))
-    updated_before = _parse_date(req.args.get("updated_before"))
+    # # -----------------------------
+    # # FECHA DE ACTUALIZACIÓN
+    # # -----------------------------
+    # updated_after = _parse_date(req.args.get("updated_after"))
+    # updated_before = _parse_date(req.args.get("updated_before"))
 
-    if updated_after:
-        query = query.filter(RecordFile.updated_at >= updated_after)
-    if updated_before:
-        query = query.filter(RecordFile.updated_at <= updated_before)
+    # if updated_after:
+    #     query = query.filter(RecordFile.updated_at >= updated_after)
+    # if updated_before:
+    #     query = query.filter(RecordFile.updated_at <= updated_before)
 
-    # -----------------------------
-    # FECHA DE DETERIORO
-    # -----------------------------
-    det_after = _parse_date(req.args.get("det_after"))
-    det_before = _parse_date(req.args.get("det_before"))
+    # # -----------------------------
+    # # FECHA DE DETERIORO
+    # # -----------------------------
+    # det_after = _parse_date(req.args.get("det_after"))
+    # det_before = _parse_date(req.args.get("det_before"))
 
-    if det_after:
-        query = query.filter(
-            RecordFile.deterioration_status_updated_at >= det_after)
-    if det_before:
-        query = query.filter(
-            RecordFile.deterioration_status_updated_at <= det_before)
+    # if det_after:
+    #     query = query.filter(
+    #         RecordFile.deterioration_status_updated_at >= det_after)
+    # if det_before:
+    #     query = query.filter(
+    #         RecordFile.deterioration_status_updated_at <= det_before)
 
-    # -----------------------------
-    # FECHA DE PRESERVACIÓN
-    # -----------------------------
-    pres_after = _parse_date(req.args.get("preservation_after"))
-    pres_before = _parse_date(req.args.get("preservation_before"))
+    # # -----------------------------
+    # # FECHA DE PRESERVACIÓN
+    # # -----------------------------
+    # pres_after = _parse_date(req.args.get("preservation_after"))
+    # pres_before = _parse_date(req.args.get("preservation_before"))
 
-    if pres_after:
-        query = query.filter(RecordFile.last_preservation_date >= pres_after)
-    if pres_before:
-        query = query.filter(RecordFile.last_preservation_date <= pres_before)
+    # if pres_after:
+    #     query = query.filter(RecordFile.last_preservation_date >= pres_after)
+    # if pres_before:
+    #     query = query.filter(RecordFile.last_preservation_date <= pres_before)
 
-    # -----------------------------
-    # FECHA DE FONDO
-    # -----------------------------
-    fund_after = _parse_date(req.args.get("fund_after"))
-    fund_before = _parse_date(req.args.get("fund_before"))
+    # # -----------------------------
+    # # FECHA DE FONDO
+    # # -----------------------------
+    # fund_after = _parse_date(req.args.get("fund_after"))
+    # fund_before = _parse_date(req.args.get("fund_before"))
 
-    if fund_after:
-        query = query.filter(RecordFile.last_fund_date >= fund_after)
-    if fund_before:
-        query = query.filter(RecordFile.last_fund_date <= fund_before)
+    # if fund_after:
+    #     query = query.filter(RecordFile.last_fund_date >= fund_after)
+    # if fund_before:
+    #     query = query.filter(RecordFile.last_fund_date <= fund_before)
 
-    # ORDEN POR DEFECTO
-    query = query.order_by(RecordFile.updated_at.desc())
+    # # ORDEN POR DEFECTO
+    # query = query.order_by(RecordFile.updated_at.desc())
 
-    return query
+    # return query
 
 
 def _build_record_files_excel(record_files):
