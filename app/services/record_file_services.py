@@ -2,6 +2,8 @@
 
 """Servicios y funciones de apoyo para la gestión de expedientes documentales."""
 
+from sqlalchemy import func, cast, Integer
+from app.models.box import Box
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl import Workbook
@@ -53,8 +55,7 @@ from flask import current_app
 from reportlab.platypus import Image, Spacer
 from reportlab.lib.units import cm
 REPORT_COLOR = colors.Color(115/255.0, 74/255.0, 31/255.0)  # #734A1F
-from app.models.box import Box
-from typing import Optional
+
 
 def _validate_active_entity(entity, entity_name: str = "Entidad"):
     """
@@ -94,118 +95,118 @@ def _parse_date(date_str: str):
     # -----------------------------
     # ORDEN LÓGICO POR DISPONIBILIDAD (solo si aplica)
     # -----------------------------
-    status_order = case(
-        (RecordFile.availability_status == "available", 1),
-        (RecordFile.availability_status == "on_loan", 2),
-        (RecordFile.availability_status == "under_review", 3),
-        (RecordFile.availability_status == "unavailable", 4),
-        else_=99,
-    )
+    # status_order = case(
+    #     (RecordFile.availability_status == "available", 1),
+    #     (RecordFile.availability_status == "on_loan", 2),
+    #     (RecordFile.availability_status == "under_review", 3),
+    #     (RecordFile.availability_status == "unavailable", 4),
+    #     else_=99,
+    # )
 
-    # Si no se envió ningún order_by → ordenar solo por status + updated_at desc
-    if not order_by_param:
-        return query.order_by(status_order, RecordFile.updated_at.desc())
+    # # Si no se envió ningún order_by → ordenar solo por status + updated_at desc
+    # if not order_by_param:
+    #     return query.order_by(status_order, RecordFile.updated_at.desc())
 
-    # ===========================================================
-    # LIMPIAR Y EXTRAER NUMEROS DE box_number
-    # ===========================================================
-    query = query.outerjoin(Box, Box.id == RecordFile.box_id)
-    query = (
-    query
-    .outerjoin(Fund, Fund.id == RecordFile.fund_id)
-    .outerjoin(Section, Section.id == RecordFile.section_id)
-    .outerjoin(Series, Series.id == RecordFile.series_id)
-    .outerjoin(Location, Location.id == RecordFile.location_id)
-)
-    clean_box = func.trim(Box.box_number)
-    digits_box = func.regexp_replace(clean_box, r'[^0-9]', '')
+    # # ===========================================================
+    # # LIMPIAR Y EXTRAER NUMEROS DE box_number
+    # # ===========================================================
+    # query = query.outerjoin(Box, Box.id == RecordFile.box_id)
+    # query = (
+    #     query
+    #     .outerjoin(Fund, Fund.id == RecordFile.fund_id)
+    #     .outerjoin(Section, Section.id == RecordFile.section_id)
+    #     .outerjoin(Series, Series.id == RecordFile.series_id)
+    #     .outerjoin(Location, Location.id == RecordFile.location_id)
+    # )
+    # clean_box = func.trim(Box.box_number)
+    # digits_box = func.regexp_replace(clean_box, r'[^0-9]', '')
 
-    box_as_int = func.coalesce(
-    cast(func.nullif(digits_box, ""), Integer),
-    999999999
-)
+    # box_as_int = func.coalesce(
+    #     cast(func.nullif(digits_box, ""), Integer),
+    #     999999999
+    # )
 
-    # ===========================================================
-    # LIMPIAR Y EXTRAER NUMEROS DE file_number
-    # ===========================================================
-    clean_file = func.trim(RecordFile.file_number)
-    digits_file = func.regexp_replace(clean_file, r'[^0-9]', '')
+    # # ===========================================================
+    # # LIMPIAR Y EXTRAER NUMEROS DE file_number
+    # # ===========================================================
+    # clean_file = func.trim(RecordFile.file_number)
+    # digits_file = func.regexp_replace(clean_file, r'[^0-9]', '')
 
-    file_as_int = func.coalesce(
-        cast(func.nullif(digits_file, ""), Integer),
-        999999999
-    )
+    # file_as_int = func.coalesce(
+    #     cast(func.nullif(digits_file, ""), Integer),
+    #     999999999
+    # )
 
-    # ===========================================================
-    # MAPEO FINAL DE CAMPOS
-    # ===========================================================
-    mapping = {
-        "created_at_asc": RecordFile.created_at.asc(),
-        "created_at_desc": RecordFile.created_at.desc(),
+    # # ===========================================================
+    # # MAPEO FINAL DE CAMPOS
+    # # ===========================================================
+    # mapping = {
+    #     "created_at_asc": RecordFile.created_at.asc(),
+    #     "created_at_desc": RecordFile.created_at.desc(),
 
-        "updated_at_asc": RecordFile.updated_at.asc(),
-        "updated_at_desc": RecordFile.updated_at.desc(),
+    #     "updated_at_asc": RecordFile.updated_at.asc(),
+    #     "updated_at_desc": RecordFile.updated_at.desc(),
 
-        "file_date_asc": RecordFile.file_date.asc(),
-        "file_date_desc": RecordFile.file_date.desc(),
+    #     "file_date_asc": RecordFile.file_date.asc(),
+    #     "file_date_desc": RecordFile.file_date.desc(),
 
-        "deterioration_status_updated_at_asc":
-            RecordFile.deterioration_status_updated_at.asc(),
-        "deterioration_status_updated_at_desc":
-            RecordFile.deterioration_status_updated_at.desc(),
+    #     "deterioration_status_updated_at_asc":
+    #         RecordFile.deterioration_status_updated_at.asc(),
+    #     "deterioration_status_updated_at_desc":
+    #         RecordFile.deterioration_status_updated_at.desc(),
 
-        # Ordenamiento REAL numérico
-        "box_number_asc": box_as_int.asc(),
-        "box_number_desc": box_as_int.desc(),
+    #     # Ordenamiento REAL numérico
+    #     "box_number_asc": box_as_int.asc(),
+    #     "box_number_desc": box_as_int.desc(),
 
-        "file_number_asc": file_as_int.asc(),
-        "file_number_desc": file_as_int.desc(),
-        
-        # =========================
-        # CAMPOS TEXTUALES
-        # =========================
-        "reference_code_asc": RecordFile.reference_code.asc(),
-        "reference_code_desc": RecordFile.reference_code.desc(),
+    #     "file_number_asc": file_as_int.asc(),
+    #     "file_number_desc": file_as_int.desc(),
 
-        "previous_reference_code_asc":
-            RecordFile.previous_reference_code.asc(),
-        "previous_reference_code_desc":
-            RecordFile.previous_reference_code.desc(),
+    #     # =========================
+    #     # CAMPOS TEXTUALES
+    #     # =========================
+    #     "reference_code_asc": RecordFile.reference_code.asc(),
+    #     "reference_code_desc": RecordFile.reference_code.desc(),
 
-        "fund_name_asc": Fund.name.asc(),
-        "fund_name_desc": Fund.name.desc(),
+    #     "previous_reference_code_asc":
+    #         RecordFile.previous_reference_code.asc(),
+    #     "previous_reference_code_desc":
+    #         RecordFile.previous_reference_code.desc(),
 
-        "section_name_asc": Section.name.asc(),
-        "section_name_desc": Section.name.desc(),
+    #     "fund_name_asc": Fund.name.asc(),
+    #     "fund_name_desc": Fund.name.desc(),
 
-        "series_name_asc": Series.name.asc(),
-        "series_name_desc": Series.name.desc(),
+    #     "section_name_asc": Section.name.asc(),
+    #     "section_name_desc": Section.name.desc(),
 
-        "location_name_asc": Location.name.asc(),
-        "location_name_desc": Location.name.desc(),
-    }
+    #     "series_name_asc": Series.name.asc(),
+    #     "series_name_desc": Series.name.desc(),
 
-    sort_expr = mapping.get(order_by_param)
+    #     "location_name_asc": Location.name.asc(),
+    #     "location_name_desc": Location.name.desc(),
+    # }
 
-    # Si no coincide → usar updated_at por defecto
-    if sort_expr is None:
-        return query.order_by(status_order, RecordFile.updated_at.desc())
+    # sort_expr = mapping.get(order_by_param)
 
-    # ===========================================================
-    # 🔥 SI ORDENA POR NÚMEROS → IGNORAR DISPONIBILIDAD
-    # ===========================================================
-    if order_by_param in [
-        "box_number_asc", "box_number_desc",
-        "file_number_asc", "file_number_desc",
-        # "created_at_asc", "created_at_desc",
-        # "updated_at_asc", "updated_at_desc",
-        # "file_date_asc", "file_date_desc",
-        # "deterioration_status_updated_at_asc", "deterioration_status_updated_at_desc",
-    ]:
-        return query.order_by(sort_expr)
+    # # Si no coincide → usar updated_at por defecto
+    # if sort_expr is None:
+    #     return query.order_by(status_order, RecordFile.updated_at.desc())
 
-    # Caso normal → ordenar por disponibilidad primero
-    return query.order_by(status_order, sort_expr)
+    # # ===========================================================
+    # # 🔥 SI ORDENA POR NÚMEROS → IGNORAR DISPONIBILIDAD
+    # # ===========================================================
+    # if order_by_param in [
+    #     "box_number_asc", "box_number_desc",
+    #     "file_number_asc", "file_number_desc",
+    #     # "created_at_asc", "created_at_desc",
+    #     # "updated_at_asc", "updated_at_desc",
+    #     # "file_date_asc", "file_date_desc",
+    #     # "deterioration_status_updated_at_asc", "deterioration_status_updated_at_desc",
+    # ]:
+    #     return query.order_by(sort_expr)
+
+    # # Caso normal → ordenar por disponibilidad primero
+    # return query.order_by(status_order, sort_expr)
 
 
 def _apply_ordering(query, order_by_param: Optional[str]):
@@ -463,7 +464,7 @@ para mantener compatibilidad con versiones anteriores.
     deterioration_name_param = (req.args.get(
         "deterioration_name", "") or "").strip()
     typology_name_param = (req.args.get("typology_name", "") or "").strip()
-    
+
     fund_id_param = req.args.get("fund_id", type=int)
     section_id_param = req.args.get("section_id", type=int)
     series_id_param = req.args.get("series_id", type=int)
@@ -518,10 +519,12 @@ para mantener compatibilidad con versiones anteriores.
 
     if box_number_param:
         like = f"%{box_number_param}%"
-        # q = q.filter(RecordFile.box_number.ilike(like))
-        q = q.join(Box, Box.id == RecordFile.box_id).filter(
-            Box.box_number.ilike(like)
-)
+        q = q.filter(
+            RecordFile.box.has(
+                Box.box_number.ilike(like)
+            )
+        )
+
     if user_query_param:
         like = f"%{user_query_param}%"
 
@@ -553,17 +556,18 @@ para mantener compatibilidad con versiones anteriores.
         q = q.filter(RecordFile.location_id == location_id_param)
 
     if deterioration_id_param:
-        q = q.filter(RecordFile.deterioration_status_id == deterioration_id_param)
+        q = q.filter(RecordFile.deterioration_status_id ==
+                     deterioration_id_param)
 
     if typology_id_param:
         q = q.join(
-        RecordFileTypology,
-        and_(
-            RecordFileTypology.record_file_id == RecordFile.id,
-            RecordFileTypology.deleted_at.is_(None),
-        ),
-    ).filter(RecordFileTypology.typology_id == typology_id_param)
-    
+            RecordFileTypology,
+            and_(
+                RecordFileTypology.record_file_id == RecordFile.id,
+                RecordFileTypology.deleted_at.is_(None),
+            ),
+        ).filter(RecordFileTypology.typology_id == typology_id_param)
+
     if fund_name_param and not fund_id_param:
         like = f"%{fund_name_param}%"
         q = q.join(Fund, Fund.id == RecordFile.fund_id).filter(
@@ -585,18 +589,18 @@ para mantener compatibilidad con versiones anteriores.
     if location_name_param and not location_id_param:
         like = f"%{location_name_param}%"
         q = q.filter(
-        RecordFile.location.has(
-            Location.name.ilike(like)
+            RecordFile.location.has(
+                Location.name.ilike(like)
+            )
         )
-    )
 
     if deterioration_name_param and not deterioration_id_param:
         like = f"%{deterioration_name_param}%"
         q = q.filter(
-    RecordFile.deterioration_status.has(
-        Deterioration.name.ilike(like)
-    )
-)
+            RecordFile.deterioration_status.has(
+                Deterioration.name.ilike(like)
+            )
+        )
 
     if typology_name_param and not typology_id_param:
         like = f"%{typology_name_param}%"
@@ -613,7 +617,6 @@ para mantener compatibilidad con versiones anteriores.
                 Typology.deleted_at.is_(None),
             ),
         ).filter(Typology.name.ilike(like))
-    
 
     # =========================
     # 4) CONFIDENCIALIDAD
@@ -648,7 +651,6 @@ para mantener compatibilidad con versiones anteriores.
 
     return q
 
-from sqlalchemy import func, cast, Integer
 
 def _generate_next_file_number(
     *,
@@ -671,6 +673,7 @@ def _generate_next_file_number(
     max_number = query.scalar()
 
     return str((max_number or 0) + 1)
+
 
 def _serialize_record_file(obj: RecordFile):
     """
@@ -802,7 +805,7 @@ def _build_record_files_pdf(record_files):
 
     # encabezados de la tabla
     data = [
-        ["ID", "Código","Caja", "Asunto", "Fondo", "Sección",
+        ["ID", "Código", "Caja", "Asunto", "Fondo", "Sección",
             "Ubicación", "Estado", "Fecha doc."]
     ]
 
@@ -1126,6 +1129,7 @@ def smart_split(text):
             items.append(p)
     return items
 
+
 def parse_previous_reference_code(ref: str):
     """
     Espera un código con formato:
@@ -1144,7 +1148,8 @@ def parse_previous_reference_code(ref: str):
     seccion = parts[1]
     serie = parts[2]
     box_raw = parts[3]
-    box = box_raw.replace("C.", "").replace("c.", "").strip()              # ejemplo: C.5
+    box = box_raw.replace("C.", "").replace(
+        "c.", "").strip()              # ejemplo: C.5
 
     # Exp.1293 → extraer solo "1293"
     exp_raw = parts[4]
@@ -1154,7 +1159,6 @@ def parse_previous_reference_code(ref: str):
         exp = exp_raw
 
     return fondo, seccion, serie, box, exp
-
 
 
 def build_cover_page(record_file):
@@ -1197,16 +1201,17 @@ def build_cover_page(record_file):
     folio_txt = f"{record_file.id:06d}"
     prev_code = record_file.previous_reference_code
 
-    fondo_txt2, seccion_txt2, serie_txt2, box_txt2, exp_txt2 = parse_previous_reference_code(prev_code)
+    fondo_txt2, seccion_txt2, serie_txt2, box_txt2, exp_txt2 = parse_previous_reference_code(
+        prev_code)
     location_code = (
-    record_file.box.physical_location.code
-    if record_file.box and record_file.box.physical_location
-    else ""
-)
+        record_file.box.physical_location.code
+        if record_file.box and record_file.box.physical_location
+        else ""
+    )
 
     # qr_url = f"http://localhost:5173/fondos/admin/1/physical_locations/{location_code}"
     qr_url = f"http://189.195.96.226/fondos/physical_locations/{location_code}"
-        # -------------------------------
+    # -------------------------------
     # POSICIONES
     # -------------------------------
     c.drawString(43 * mm, 235.5 * mm, fondo_txt)
@@ -1263,13 +1268,12 @@ def build_cover_page(record_file):
     # Código de barras
     # -----------------------------
     c.setFont("Helvetica", 8)
-    #from reportlab.graphics.barcode import code128
-    #barcode_value = record_file.reference_code or f"EXP-{record_file.id}"
-    #barcode = code128.Code128(barcode_value, barHeight=15 * mm, barWidth=0.4)
-    
-    
-    #barcode.drawOn(c, 17 * mm, 15 * mm)
-    #c.drawString(24 * mm, 12 * mm, barcode_value)
+    # from reportlab.graphics.barcode import code128
+    # barcode_value = record_file.reference_code or f"EXP-{record_file.id}"
+    # barcode = code128.Code128(barcode_value, barHeight=15 * mm, barWidth=0.4)
+
+    # barcode.drawOn(c, 17 * mm, 15 * mm)
+    # c.drawString(24 * mm, 12 * mm, barcode_value)
     from reportlab.graphics.barcode import qr
     from reportlab.graphics import renderPDF
     from reportlab.graphics.shapes import Drawing
@@ -1288,7 +1292,7 @@ def build_cover_page(record_file):
 
     # MISMA POSICIÓN DEL BARCODE ORIGINAL
     renderPDF.draw(d, c, 20 * mm, 5 * mm)
-    
+
     c.setFont("Helvetica", 7)
 
     qr_text = ""
@@ -1534,7 +1538,7 @@ def _build_record_files_excel(record_files):
             ) if rf.deterioration_status_updated_at else "",
 
             rf.page_count or "",
-            
+
             rf.comments or "",
 
             ", ".join(
