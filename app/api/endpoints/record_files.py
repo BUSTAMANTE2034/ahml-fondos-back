@@ -527,7 +527,7 @@ class RecordFileDetail(Resource):
         # -----------------------------
         # AUDITORÍA
         # -----------------------------
-        rf.user_id = current_user.id if current_user.is_authenticated else rf.user_id
+        rf.updated_by_id = current_user.id if current_user.is_authenticated else rf.user_id
         rf.updated_at = db.func.now()
 
         # -----------------------------
@@ -558,7 +558,7 @@ class RecordFileDetail(Resource):
             return {"message": "Expediente no encontrado."}, 404
 
         rf.deleted_at = db.func.now()
-        rf.user_id = current_user.id if current_user.is_authenticated else rf.user_id
+        rf.deleted_by_id = current_user.id if current_user.is_authenticated else rf.user_id
 
         db.session.commit()
 
@@ -765,7 +765,7 @@ class RecordFileReorderByDate(Resource):
                     )
 
                     rf.updated_at = db.func.now()
-                    rf.user_id = current_user.id
+                    rf.updated_by_id = current_user.id
                     updated_count += 1
 
         # -----------------------------

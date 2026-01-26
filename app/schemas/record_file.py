@@ -45,7 +45,10 @@ class RecordFileBaseSchema(Schema):
 
     deterioration_status_id = fields.Int(allow_none=True)
 
+    # 🔐 auditoría (SOLO LECTURA)
     user_id = fields.Int(dump_only=True)
+    updated_by_id = fields.Int(dump_only=True)
+    deleted_by_id = fields.Int(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
     deleted_at = fields.DateTime(dump_only=True)

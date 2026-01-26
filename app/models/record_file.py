@@ -59,6 +59,17 @@ class RecordFile(db.Model):
         db.ForeignKey("user.id"),
         nullable=True,
     )
+    updated_by_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+    )
+
+    deleted_by_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+    )
 
     comments = db.Column(db.Text, nullable=True)
 
@@ -93,10 +104,10 @@ class RecordFile(db.Model):
 
     # datos físicos
     box_id = db.Column(
-    db.Integer,
-    db.ForeignKey("box.id"),
-    nullable=True,
-)
+        db.Integer,
+        db.ForeignKey("box.id"),
+        nullable=True,
+    )
     page_count = db.Column(db.Integer, nullable=True)
     document_sizes = db.Column(db.String(500), nullable=True)
 
@@ -105,17 +116,17 @@ class RecordFile(db.Model):
 
     # auditoría
     created_at = db.Column(
-     db.DateTime,
-    server_default=db.func.now(),
-    nullable=False,
-)
+        db.DateTime,
+        server_default=db.func.now(),
+        nullable=False,
+    )
 
     updated_at = db.Column(
-    db.DateTime,
-    server_default=db.func.now(),
-    server_onupdate=db.func.now(),
-    nullable=False,
-)
+        db.DateTime,
+        server_default=db.func.now(),
+        server_onupdate=db.func.now(),
+        nullable=False,
+    )
     deleted_at = db.Column(db.DateTime, nullable=True)
 
     # preservación / conservación
@@ -134,8 +145,25 @@ class RecordFile(db.Model):
     section = db.relationship("Section", backref="record_files", lazy=True)
     series = db.relationship("Series", backref="record_files", lazy=True)
     location = db.relationship("Location", backref="record_files", lazy=True)
-    user = db.relationship("User", backref="record_files", lazy=True)
-    deterioration_status = db.relationship("Deterioration", backref="record_files", lazy=True)
+    user = db.relationship(
+    "User",
+    foreign_keys=[user_id],
+    backref="record_files",
+    lazy=True,
+)
+    updated_by = db.relationship(
+        "User",
+        foreign_keys=[updated_by_id],
+        lazy=True,
+    )
+
+    deleted_by = db.relationship(
+        "User",
+        foreign_keys=[deleted_by_id],
+        lazy=True,
+    )
+    deterioration_status = db.relationship(
+        "Deterioration", backref="record_files", lazy=True)
     box = db.relationship("Box", backref="record_files", lazy=True)
 
     def __repr__(self) -> str:
@@ -149,7 +177,10 @@ class RecordFile(db.Model):
             "file_number": self.file_number,
             "subject": self.subject,
             "sensitive_data": self.sensitive_data,
-            "user_id": self.user_id,
+            # auditoría de usuarios
+            "user_id": self.user_id,               # creador
+            "updated_by_id": self.updated_by_id,   # último editor
+            "deleted_by_id": self.deleted_by_id,   # quién eliminó
             "comments": self.comments,
             "availability_status": self.availability_status,
             "fund_id": self.fund_id,
@@ -168,4 +199,3 @@ class RecordFile(db.Model):
             "deterioration_status_id": self.deterioration_status_id,
             "deterioration_status_updated_at": self.deterioration_status_updated_at,
         }
-        

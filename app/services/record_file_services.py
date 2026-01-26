@@ -698,6 +698,26 @@ def _serialize_record_file(obj: RecordFile):
         if obj.user
         else None
     )
+    base["updated_user"] = (
+        {
+            "id": obj.updated_by.id,
+            "first_name": obj.updated_by.first_name,
+            "last_name": obj.updated_by.last_name,
+            "email": obj.updated_by.email,
+        }
+        if getattr(obj, "updated_by", None)
+        else None
+    )
+    base["deleted_user"] = (
+        {
+            "id": obj.deleted_by.id,
+            "first_name": obj.deleted_by.first_name,
+            "last_name": obj.deleted_by.last_name,
+            "email": obj.deleted_by.email,
+        }
+        if getattr(obj, "deleted_by", None)
+        else None
+    )
 
     base["fund"] = (
         {
