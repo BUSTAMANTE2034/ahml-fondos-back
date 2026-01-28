@@ -484,6 +484,7 @@ para mantener compatibilidad con versiones anteriores.
     # --- Ordenamiento ---
     order_by_param = req.args.get("order_by")
     user_query_param = (req.args.get("user_query", "") or "").strip()
+    user_query_param2 = (req.args.get("user_query2", "") or "").strip()
 
     # --- Query base: solo expedientes no eliminados ---
     q = RecordFile.query.filter(RecordFile.deleted_at.is_(None))
@@ -547,6 +548,26 @@ para mantener compatibilidad con versiones anteriores.
 
         q = (
             q.outerjoin(CreatedBy, CreatedBy.id == RecordFile.user_id)
+            .filter(
+                or_(
+                    CreatedBy.employee_id.ilike(like),
+                    CreatedBy.email.ilike(like),
+                    CreatedBy.first_name.ilike(like),
+                    CreatedBy.last_name.ilike(like),
+                )
+            )
+        )
+        
+    if user_query_param2:
+        like = f"%{user_query_param2}%"
+        from sqlalchemy.orm import aliased
+        from sqlalchemy import or_
+
+        CreatedBy = aliased(User)
+        UpdatedBy = aliased(User)
+
+        q = (
+            q.outerjoin(CreatedBy, CreatedBy.id == RecordFile.user_id)
             .outerjoin(UpdatedBy, UpdatedBy.id == RecordFile.updated_by_id)
             .filter(
                 or_(
@@ -562,7 +583,6 @@ para mantener compatibilidad con versiones anteriores.
                 )
             )
         )
-
     # =========================================
     # 3) FILTROS POR RELACIONES (ID tiene prioridad sobre nombre)
     # =========================================
