@@ -571,7 +571,10 @@ class RecordFileDetail(Resource):
         rf = RecordFile.query.get(record_file_id)
         if not rf or rf.deleted_at is not None:
             return {"message": "Expediente no encontrado."}, 404
-
+        if not can_modify_record_file(rf, current_user):
+            return {
+        "message": "No tienes permisos para eliminar este expediente."
+    }, 403
         rf.deleted_at = db.func.now()
         rf.deleted_by_id = user_id
 
