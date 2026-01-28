@@ -213,6 +213,7 @@ class LoanList(Resource):
         Crea un préstamo.
         Solo si el expediente está en estado 'available'.
         """
+        user_id = current_user.id
         schema = LoanCreateSchema()
         try:
             payload = request.get_json() or {}
@@ -284,7 +285,7 @@ class LoanList(Resource):
         now = db.func.now()
         loan = Loan(
             record_file_id=record_file_id,
-            issued_by_user_id=current_user.id if current_user.is_authenticated else None,
+            issued_by_user_id=user_id,
             loaded_by_user_id=None,
             description=description,
             loaded_at=now,
@@ -358,6 +359,7 @@ class LoanReceive(Resource):
         - returned_at = db.func.now()
         - expediente → available
         """
+        user_id=current_user.id
         loan = Loan.query.get(loan_id)
         if not loan or loan.deleted_at is not None:
             return {"message": "Préstamo no encontrado."}, 404
@@ -369,7 +371,7 @@ class LoanReceive(Resource):
         if loan.returned_at is not None:
             return {"message": "El préstamo ya fue marcado como devuelto."}, 400
 
-        loan.loaded_by_user_id = current_user.id
+        loan.loaded_by_user_id = user_id
         loan.returned_at = db.func.now()
         _mark_record_available(rf)
 
@@ -392,6 +394,7 @@ class LoanReceiveByRecordFile(Resource):
         Recibe: record_file_id
         Busca el préstamo activo más reciente.
         """
+        user_id=current_user.id
 
         # 1. Buscar expediente
         rf = RecordFile.query.get(record_file_id)
@@ -424,7 +427,7 @@ class LoanReceiveByRecordFile(Resource):
             }, 404
 
         # 4. Marcar devolución
-        last_active_loan.loaded_by_user_id = current_user.id
+        last_active_loan.loaded_by_user_id = user_id
         last_active_loan.returned_at = db.func.now()
         rf.availability_status = "available"
 

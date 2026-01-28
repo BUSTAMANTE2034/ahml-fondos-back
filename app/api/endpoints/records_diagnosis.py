@@ -158,6 +158,7 @@ class RecordDiagnosisList(Resource):
         Crea una nueva revisión de expediente con múltiples
         conceptos/detalles asociados.
         """
+        user_id=current_user.id
         schema = RecordDiagnosisCreateSchema()
         try:
             payload = request.get_json() or {}
@@ -185,7 +186,7 @@ class RecordDiagnosisList(Resource):
 
         diagnosis = RecordDiagnosis(
             record_file_id=record_file.id,
-            user_id=current_user.id,
+            user_id=user_id,
             observations=data.get("observations"),
         )
 

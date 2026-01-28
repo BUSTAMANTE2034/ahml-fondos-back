@@ -188,6 +188,7 @@ class MovementHistoryList(Resource):
     @login_required
     @role_required("admin", "manager","archivist")
     def post(self):
+        user_id = current_user.id
         schema = MovementHistoryCreateSchema()
 
         try:
@@ -237,7 +238,7 @@ class MovementHistoryList(Resource):
         # Crear movimiento
         mov = MovementHistory(
             record_file_id=record_file_id,
-            moved_by_user_id=current_user.id,
+            moved_by_user_id=user_id,
             description=description,
             origin_status=origin_status,
             destination_status=destination_status,
