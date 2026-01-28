@@ -42,6 +42,15 @@ api = Namespace(
     description="Operaciones de gestión de expedientes documentales",
 )
 
+def can_modify_record_file(rf: RecordFile, user) -> bool:
+    if not user.is_authenticated:
+        return False
+
+    if user.role in ("admin", "manager"):
+        return True
+
+    return rf.user_id == user.id
+
 
 @api.route("")
 class RecordFileList(Resource):
@@ -173,6 +182,7 @@ class RecordFileList(Resource):
             en la tabla puente (solo las que existan y no estén eliminadas).
             El código de referencia (reference_code) se genera automáticamente.
         """
+        user_id = current_user.id
         schema = RecordFileCreateSchema()
         try:
             payload = request.get_json() or {}
@@ -307,7 +317,7 @@ class RecordFileList(Resource):
             last_fund_date=data.get("last_fund_date"),
             deterioration_status_id=det_id,
             deterioration_status_updated_at=db.func.now() if det_id else None,
-            user_id=current_user.id if current_user.is_authenticated else None,
+            user_id=user_id ,
         )
 
         db.session.add(rf)
@@ -354,6 +364,7 @@ class RecordFileDetail(Resource):
         # -----------------------------
         # VALIDACIÓN INICIAL
         # -----------------------------
+        user_id = current_user.id
         schema = RecordFileUpdateSchema()
         try:
             payload = request.get_json() or {}
@@ -386,7 +397,10 @@ class RecordFileDetail(Resource):
         rf = RecordFile.query.get(record_file_id)
         if not rf or rf.deleted_at is not None:
             return {"message": "Expediente no encontrado."}, 404
-
+        if not can_modify_record_file(rf, current_user):
+            return {
+        "message": "No tienes permisos para modificar este expediente."
+    }, 403
         # valores actuales
         fund = rf.fund
         section = rf.section
@@ -527,7 +541,7 @@ class RecordFileDetail(Resource):
         # -----------------------------
         # AUDITORÍA
         # -----------------------------
-        rf.updated_by_id = current_user.id if current_user.is_authenticated else rf.user_id
+        rf.updated_by_id = user_id
         rf.updated_at = db.func.now()
 
         # -----------------------------
@@ -553,12 +567,13 @@ class RecordFileDetail(Resource):
         """
         Realiza un borrado lógico del expediente.
     """
+        user_id = current_user.id
         rf = RecordFile.query.get(record_file_id)
         if not rf or rf.deleted_at is not None:
             return {"message": "Expediente no encontrado."}, 404
 
         rf.deleted_at = db.func.now()
-        rf.deleted_by_id = current_user.id if current_user.is_authenticated else rf.user_id
+        rf.deleted_by_id = user_id
 
         db.session.commit()
 
@@ -668,6 +683,7 @@ class RecordFileReorderByDate(Resource):
     @login_required
     @role_required("admin", "manager", "archivist")
     def put(self):
+        
         """
         Reordena los file_number de los expedientes
         por fondo-sección-serie-caja usando file_date
@@ -676,7 +692,7 @@ class RecordFileReorderByDate(Resource):
         Filtros opcionales por query params:
         ?fund_id=&section_id=&series_id=&box_number=
         """
-
+        user_id = current_user.id
         # -----------------------------
         # LEER QUERY PARAMS
         # -----------------------------
@@ -765,7 +781,7 @@ class RecordFileReorderByDate(Resource):
                     )
 
                     rf.updated_at = db.func.now()
-                    rf.updated_by_id = current_user.id
+                    rf.updated_by_id = user_id
                     updated_count += 1
 
         # -----------------------------

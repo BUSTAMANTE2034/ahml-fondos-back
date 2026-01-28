@@ -475,12 +475,12 @@ para mantener compatibilidad con versiones anteriores.
     # --- Filtros de estado / confidencialidad ---
     sensitive_param = (req.args.get("sensitive") or "all").strip().lower()
     availability_param = (req.args.get("availability_status") or "all").strip()
-
+    
     # --- Rango de fechas (file_date) ---
     file_date_after_param = req.args.get("file_date_after")
     print(" file_date_after recibido:", file_date_after_param)
     file_date_before_param = req.args.get("file_date_before")
-
+    file_date_param = req.args.get("file_date")
     # --- Ordenamiento ---
     order_by_param = req.args.get("order_by")
     user_query_param = (req.args.get("user_query", "") or "").strip()
@@ -527,16 +527,39 @@ para mantener compatibilidad con versiones anteriores.
 
     if user_query_param:
         like = f"%{user_query_param}%"
+        # q = q.join(
+        #     User,
+        #     User.id == RecordFile.user_id
+        # ).filter(
+        #     or_(
+        #         User.employee_id.ilike(like),
+        #         User.email.ilike(like),
+        #         User.first_name.ilike(like),
+        #         User.last_name.ilike(like),
+        #     )
+        # )
 
-        q = q.join(
-            User,
-            User.id == RecordFile.user_id
-        ).filter(
-            or_(
-                User.employee_id.ilike(like),
-                User.email.ilike(like),
-                User.first_name.ilike(like),
-                User.last_name.ilike(like),
+        from sqlalchemy.orm import aliased
+        from sqlalchemy import or_
+
+        CreatedBy = aliased(User)
+        UpdatedBy = aliased(User)
+
+        q = (
+            q.outerjoin(CreatedBy, CreatedBy.id == RecordFile.user_id)
+            .outerjoin(UpdatedBy, UpdatedBy.id == RecordFile.updated_by_id)
+            .filter(
+                or_(
+                    CreatedBy.employee_id.ilike(like),
+                    CreatedBy.email.ilike(like),
+                    CreatedBy.first_name.ilike(like),
+                    CreatedBy.last_name.ilike(like),
+
+                    UpdatedBy.employee_id.ilike(like),
+                    UpdatedBy.email.ilike(like),
+                    UpdatedBy.first_name.ilike(like),
+                    UpdatedBy.last_name.ilike(like),
+                )
             )
         )
 
@@ -638,7 +661,8 @@ para mantener compatibilidad con versiones anteriores.
     # =========================
     file_date_after = _parse_date(file_date_after_param)
     file_date_before = _parse_date(file_date_before_param)
-
+    if file_date_param:
+        q = q.filter(RecordFile.file_date == file_date_param)
     if file_date_after:
         q = q.filter(RecordFile.file_date >= file_date_after)
     if file_date_before:
