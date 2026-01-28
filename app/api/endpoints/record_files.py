@@ -784,7 +784,7 @@ class RecordFileReorderByDate(Resource):
                     )
 
                     rf.updated_at = db.func.now()
-                    rf.updated_by_id = user_id
+                    # rf.updated_by_id = user_id
                     updated_count += 1
 
         # -----------------------------
