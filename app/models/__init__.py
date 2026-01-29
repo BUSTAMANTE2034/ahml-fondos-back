@@ -15,3 +15,4 @@ from app.models.box import Box
 from app.models.diagnosis_catalog import DiagnosisCatalog
 from app.models.record_diagnosis import RecordDiagnosis
 from app.models.record_diagnosis_catalog import record_diagnosis_catalog
+

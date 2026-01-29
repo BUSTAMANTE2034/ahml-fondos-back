@@ -16,6 +16,7 @@ from io import BytesIO
 from reportlab.platypus import Paragraph, Frame
 from reportlab.lib.styles import getSampleStyleSheet
 from sqlalchemy import or_, and_
+from sqlalchemy.orm import aliased
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
@@ -236,14 +237,14 @@ def _apply_ordering(query, order_by_param: Optional[str]):
     # ===========================================================
     # JOINS NECESARIOS PARA ORDENAMIENTO
     # ===========================================================
-    query = (
-        query
-        .outerjoin(Box, Box.id == RecordFile.box_id)
-        .outerjoin(Fund, Fund.id == RecordFile.fund_id)
-        .outerjoin(Section, Section.id == RecordFile.section_id)
-        .outerjoin(Series, Series.id == RecordFile.series_id)
-        .outerjoin(Location, Location.id == RecordFile.location_id)
-    )
+    # query = (
+    #     query
+    #     .outerjoin(Box, Box.id == RecordFile.box_id)
+    #     .outerjoin(Fund, Fund.id == RecordFile.fund_id)
+    #     .outerjoin(Section, Section.id == RecordFile.section_id)
+    #     .outerjoin(Series, Series.id == RecordFile.series_id)
+    #     .outerjoin(Location, Location.id == RecordFile.location_id)
+    # )
 
     # ===========================================================
     # LIMPIEZA NUMÉRICA box_number
@@ -540,8 +541,7 @@ para mantener compatibilidad con versiones anteriores.
         #     )
         # )
 
-        from sqlalchemy.orm import aliased
-        from sqlalchemy import or_
+        
 
         CreatedBy = aliased(User)
         UpdatedBy = aliased(User)
@@ -560,8 +560,6 @@ para mantener compatibilidad con versiones anteriores.
         
     if user_query_param2:
         like = f"%{user_query_param2}%"
-        from sqlalchemy.orm import aliased
-        from sqlalchemy import or_
 
         CreatedBy = aliased(User)
         UpdatedBy = aliased(User)
@@ -691,6 +689,16 @@ para mantener compatibilidad con versiones anteriores.
     # =========================
     # 7) ORDENAMIENTO
     # =========================
+    if order_by_param:
+        if "fund_name" in order_by_param:
+            q = q.outerjoin(Fund, Fund.id == RecordFile.fund_id)
+        if "section_name" in order_by_param:
+            q = q.outerjoin(Section, Section.id == RecordFile.section_id)
+        if "series_name" in order_by_param:
+            q = q.outerjoin(Series, Series.id == RecordFile.series_id)
+        if "location_name" in order_by_param:
+            q = q.outerjoin(Location, Location.id == RecordFile.location_id)
+
     q = _apply_ordering(q, order_by_param)
 
     return q
